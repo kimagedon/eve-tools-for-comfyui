@@ -1,0 +1,384 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:is([data-theme="dark"] *));
+
+/* SF Pro first (the house style of the teasers), Inter where there is no SF;
+   every technical readout — mm, K, T, m, timecode, slate — in SF Mono. */
+@theme {
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Inter", system-ui, sans-serif;
+  --font-mono: "SF Mono", ui-monospace, Menlo, "Roboto Mono", monospace;
+}
+
+/* ── Theme tokens ────────────────────────────────────────────────────
+   Apple light (#f5f5f7, black text) and true black. The stage is black in
+   both — a grading suite. Colour appears in one place only: the lens
+   dispersion (amber → magenta → blue), the signature of a model at work. */
+:root {
+  --background: #f5f5f7;
+  --surface: #ffffff;
+  --foreground: #1d1d1f;
+  --muted: #6e6e73;
+  --hairline: rgba(0, 0, 0, 0.1);
+  --primary: #1d1d1f;
+  --on-primary: #ffffff;
+  /* Sampled from the sphere renders (x-avatar-v2 / x-avatar), lifted to read as light. */
+  --amber: #d69a3c;
+  --magenta: #b8306f;
+  --blue: #6f8ff0;
+  --rim: #2a3cff;
+  --slider-track: rgba(0, 0, 0, 0.14);
+  --slider-fill: #1d1d1f;
+  --slider-thumb: #ffffff;
+  --slider-thumb-border: rgba(0, 0, 0, 0.3);
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --background: #000000;
+    --surface: #0a0a0a;
+    --foreground: #f5f5f7;
+    --muted: #86868b;
+    --hairline: rgba(255, 255, 255, 0.12);
+    --primary: #f5f5f7;
+    --on-primary: #000000;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --background: #000000;
+  --surface: #0a0a0a;
+  --foreground: #f5f5f7;
+  --muted: #86868b;
+  --hairline: rgba(255, 255, 255, 0.12);
+  --primary: #f5f5f7;
+  --on-primary: #000000;
+  color-scheme: dark;
+}
+/* The studio is black in both themes: its own tokens. */
+.eve-studio {
+  --background: #000000;
+  --primary: #f5f5f7;
+  --slider-track: rgba(255, 255, 255, 0.14);
+  --slider-fill: rgba(255, 255, 255, 0.85);
+  --slider-thumb: #ffffff;
+  --slider-thumb-border: rgba(0, 0, 0, 0.5);
+  color-scheme: dark;
+}
+
+html, body, #root { height: 100%; }
+body {
+  margin: 0;
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  transition: background-color 300ms ease-out, color 300ms ease-out;
+}
+.tabular { font-variant-numeric: tabular-nums; }
+
+/* ── The lens: EVE's sphere, its dispersion and an anamorphic streak ──
+   The render is a square with the sphere in its middle; clip-path keeps
+   only the glass, so it sits on black and on #f5f5f7 alike. */
+.eve-lens {
+  position: relative; display: inline-block; flex: none;
+  width: var(--lens, 16px); height: var(--lens, 16px);
+}
+.eve-lens > img {
+  position: absolute; left: 50%; top: 50%;
+  width: calc(var(--lens, 16px) / 0.664); height: calc(var(--lens, 16px) / 0.664);
+  transform: translate(-50%, -50%);
+  clip-path: circle(33.1% at 50% 50%);
+  max-width: none; pointer-events: none; user-select: none;
+}
+/* The streak: a thin horizontal flare through the lens, wider than it. */
+.eve-lens[data-streak]::after {
+  content: ""; position: absolute; left: 50%; top: 50%; height: 2px;
+  width: calc(var(--lens, 16px) * 4.2); transform: translate(-50%, -50%);
+  background: linear-gradient(90deg, transparent, rgba(242,163,58,0.35) 18%, rgba(255,236,220,0.95) 50%, rgba(74,108,255,0.45) 82%, transparent);
+  filter: blur(0.6px); border-radius: 2px; pointer-events: none;
+  box-shadow: 0 0 12px rgba(255,220,200,0.35);
+  mix-blend-mode: screen;
+}
+:root:not([data-theme="dark"]) .eve-landing .eve-lens[data-streak]::after { mix-blend-mode: normal; opacity: 0.65; }
+
+/* ── Viewfinder: corner brackets, mono labels, a centre cross ──────── */
+.vf { position: absolute; pointer-events: none; }
+.vf-c { position: absolute; width: 14px; height: 14px; border-color: rgba(255,255,255,0.8); border-style: solid; border-width: 0; }
+.vf-c.tl { left: -1px; top: -1px; border-left-width: 1.5px; border-top-width: 1.5px; }
+.vf-c.tr { right: -1px; top: -1px; border-right-width: 1.5px; border-top-width: 1.5px; }
+.vf-c.bl { left: -1px; bottom: -1px; border-left-width: 1.5px; border-bottom-width: 1.5px; }
+.vf-c.br { right: -1px; bottom: -1px; border-right-width: 1.5px; border-bottom-width: 1.5px; }
+.vf-l {
+  position: absolute; font: 500 10px/1 var(--font-mono); letter-spacing: 0.08em; text-transform: uppercase;
+  color: rgba(255,255,255,0.72); font-variant-numeric: tabular-nums; white-space: nowrap;
+  text-shadow: 0 1px 6px rgba(0,0,0,0.6);
+}
+.vf-x { position: absolute; left: 50%; top: 50%; width: 16px; height: 16px; transform: translate(-50%, -50%); }
+.vf-x::before, .vf-x::after { content: ""; position: absolute; background: rgba(255,255,255,0.35); }
+.vf-x::before { left: 0; right: 0; top: 50%; height: 1px; }
+.vf-x::after { top: 0; bottom: 0; left: 50%; width: 1px; }
+
+/* ── Steps cross-fade; results settle from 1.02 ────────────────────── */
+@keyframes eve-step-in { from { opacity: 0; } to { opacity: 1; } }
+.eve-step-in { animation: eve-step-in 320ms cubic-bezier(.2,.8,.2,1) both; }
+
+/* ── Press feedback ─────────────────────────────────────────────── */
+.eve-press {
+  transition: transform 110ms ease-out, background-color 150ms ease-out, color 150ms ease-out, box-shadow 180ms ease-out;
+}
+.eve-press:active { transform: scale(0.96); transition-duration: 60ms; }
+
+.slider-thumb {
+  transform: scale(1);
+  border: 1px solid color-mix(in srgb, var(--slider-thumb-border) 40%, transparent);
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.32);
+  transition:
+    transform 160ms ease-out,
+    box-shadow 160ms ease-out,
+    border-color 160ms ease-out;
+  will-change: transform;
+}
+.slider-thumb:hover {
+  transform: scale(1.06);
+  box-shadow:
+    0 1px 3px rgba(0, 0, 0, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.4);
+}
+.slider-thumb[data-dragging] {
+  transform: scale(1.1);
+  border-color: color-mix(in srgb, var(--slider-thumb-border) 65%, transparent);
+  box-shadow:
+    0 2px 5px rgba(0, 0, 0, 0.32),
+    inset 0 1px 0 rgba(255, 255, 255, 0.45);
+}
+.slider-thumb::before { background: transparent; }
+
+.slider-range {
+  transition: width 80ms ease-out;
+}
+/* While dragging, drop the fill-bar transition entirely so it tracks
+   the thumb 1:1 with no perceptible lag. */
+.group\/slider:has([data-dragging]) .slider-range {
+  transition: none;
+}
+/* Click-jump: user clicked somewhere on the track without dragging.
+   Apple's swiftOutCurve easing glides thumb + fill to the new
+   position. Wins over the no-transition drag rule. */
+.group\/slider[data-click-jump="1"] .slider-range {
+  transition: width 320ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+.group\/slider[data-click-jump="1"] [data-slot="slider-thumb"] {
+  transition:
+    left 320ms cubic-bezier(0.32, 0.72, 0, 1),
+    transform 160ms ease-out,
+    box-shadow 160ms ease-out,
+    border-color 160ms ease-out;
+}
+
+/* ── A model at work ─────────────────────────────────────────────────
+   The frame's edge carries the lens's dispersion — amber, magenta, blue —
+   turning slowly and breathing; an anamorphic streak sweeps across once
+   when the run starts. */
+@property --eve-ai-angle {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: false;
+}
+@keyframes eve-ai-turn { to { --eve-ai-angle: 360deg; } }
+@keyframes eve-ai-breathe { 0%, 100% { opacity: 0.55; } 50% { opacity: 0.95; } }
+.eve-ai-glow {
+  border-radius: 3px;
+  padding: 1.5px;
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask-composite: exclude;
+  background: conic-gradient(from var(--eve-ai-angle),
+    rgba(255,255,255,0.05), var(--amber), var(--magenta), var(--blue), var(--rim),
+    rgba(255,255,255,0.05) 62%, rgba(255,255,255,0.05));
+  animation: eve-ai-turn 6s linear infinite, eve-ai-breathe 3.6s ease-in-out infinite;
+}
+/* Blur an equal-width ring, not a filled rectangle: equal light on every side. */
+.eve-ai-halo {
+  position: absolute;
+  inset: -6px;
+  filter: blur(18px);
+  opacity: 0.55;
+}
+.eve-ai-halo .eve-ai-glow { border-radius: 10px; padding: 8px; }
+@keyframes eve-streak {
+  0% { transform: translate(-50%, -50%) scaleX(0.2); opacity: 0; }
+  25% { opacity: 1; }
+  100% { transform: translate(-50%, -50%) scaleX(1.25); opacity: 0; }
+}
+.eve-streak {
+  position: absolute; left: 50%; top: 50%; width: 100%; height: 2px; pointer-events: none;
+  background: linear-gradient(90deg, transparent, rgba(214,154,60,0.55) 20%, rgba(255,244,236,1) 50%, rgba(111,143,240,0.65) 80%, transparent);
+  box-shadow: 0 0 18px 2px rgba(111,143,240,0.3);
+  mix-blend-mode: screen;
+  animation: eve-streak 1100ms cubic-bezier(.2,.8,.2,1) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .eve-ai-glow, .eve-streak, .eve-step-in, .eve-hub-in, .eve-scene { animation: none !important; }
+  .eve-streak { display: none; }
+}
+/* Extend: the halo breathes while the model fills the canvas. */
+@keyframes eve-grow-breathe { 0%, 100% { transform: scale(1); opacity: 0.92; } 50% { transform: scale(1.04); opacity: 1; } }
+.eve-grow-breathe { animation: eve-grow-breathe 3.2s ease-in-out infinite; }
+/* Relight / Reframe: the 3D scene fades in over the flat photo. */
+@keyframes eve-scene-in { from { opacity: 0; } to { opacity: 1; } }
+.eve-scene { animation: eve-scene-in 650ms cubic-bezier(.22,1,.36,1) backwards; }
+@media (prefers-reduced-motion: reduce) { .eve-grow-breathe { animation: none; } }
+/* Inpaint: the painted area pulses while the model fills it. */
+@keyframes eve-mask-pulse { 0%, 100% { opacity: 0.55; } 50% { opacity: 0.25; } }
+.eve-mask-pulse { animation: eve-mask-pulse 1.6s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { .eve-mask-pulse { animation: none; } }
+/* Edit photo picker: the result settles in. */
+@keyframes eve-hub-in { from { opacity: 0; transform: scale(1.02); } to { opacity: 1; transform: scale(1); } }
+.eve-hub-in { animation: eve-hub-in 400ms cubic-bezier(.2,.8,.2,1) both; }
+/* Inpaint lasso: marching ants while the loop is drawn. */
+@keyframes eve-lasso-march { to { stroke-dashoffset: -18; } }
+.eve-lasso-ants { animation: eve-lasso-march 1.4s linear infinite; }
+
+/* ── The landing hero: the sphere ─────────────────────────────────── */
+.lens-hero { position: relative; display: block; width: var(--d); height: var(--d); flex: none; }
+/* The whole group screens onto the page (its transform makes it one layer), so the renders' black disappears. */
+.lens-hero-breathe { position: absolute; inset: 0; animation: lens-breathe 12s ease-in-out infinite; mix-blend-mode: screen; }
+.lens-hero picture { position: absolute; inset: 0; mix-blend-mode: screen; }
+.lens-hero img {
+  position: absolute; left: 50%; top: 50%; max-width: none; transform: translate(-50%, -50%);
+  user-select: none; pointer-events: none;
+  /* The renders' glow fades out before their square edge. */
+  -webkit-mask-image: radial-gradient(circle at 50% 50%, #000 52%, transparent 70%);
+  mask-image: radial-gradient(circle at 50% 50%, #000 52%, transparent 70%);
+}
+/* Each render scaled so the two spheres share one diameter (warm: 66.4% of its frame, blue: 85%). */
+.lens-hero-warm img { width: calc(var(--d) / 0.664); height: calc(var(--d) / 0.664); }
+.lens-hero-blue img { width: calc(var(--d) / 0.85); height: calc(var(--d) / 0.85); }
+.lens-hero-blue { opacity: 0; animation: lens-trade 12s ease-in-out infinite; }
+/* The streak runs through both renders' highlight (≈ 12% left, 13% up of the diameter). */
+.lens-hero-streak {
+  position: absolute; left: calc(50% - 0.118 * var(--d)); top: calc(50% - 0.13 * var(--d));
+  width: calc(var(--d) * 1.9); height: 2px; transform: translate(-50%, -50%);
+  background: linear-gradient(90deg, transparent, rgba(214,154,60,0.35) 22%, rgba(255,246,238,0.95) 50%, rgba(111,143,240,0.45) 78%, transparent);
+  box-shadow: 0 0 14px rgba(111,143,240,0.35); filter: blur(0.4px); border-radius: 2px; mix-blend-mode: screen;
+  animation: lens-sweep 6s ease-in-out infinite;
+}
+.lens-hero-disc { display: none; }
+@keyframes lens-breathe { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.015); } }
+@keyframes lens-trade { 0%, 100% { opacity: 0; } 45%, 55% { opacity: 1; } }
+@keyframes lens-sweep { 0%, 100% { opacity: 0.35; transform: translate(-50%, -50%) scaleX(0.85); } 50% { opacity: 0.8; transform: translate(-50%, -50%) scaleX(1.05); } }
+
+/* Light: the glass on #f5f5f7 — clipped to the sphere, a soft shadow instead of glow. */
+:root:not([data-theme="dark"]) .lens-hero picture, :root:not([data-theme="dark"]) .lens-hero-breathe { mix-blend-mode: normal; }
+:root:not([data-theme="dark"]) .lens-hero img { -webkit-mask-image: none; mask-image: none; }
+:root:not([data-theme="dark"]) .lens-hero-warm img { clip-path: circle(33.1% at 50% 50%); }
+:root:not([data-theme="dark"]) .lens-hero-blue img { clip-path: circle(42.3% at 49.8% 49.3%); }
+:root:not([data-theme="dark"]) .lens-hero-disc {
+  display: block; position: absolute; inset: 0; border-radius: 50%;
+  box-shadow: 0 30px 60px -20px rgba(0,0,0,0.35), 0 10px 24px -12px rgba(40,60,160,0.25);
+}
+:root:not([data-theme="dark"]) .lens-hero-streak { opacity: 0.5; mix-blend-mode: normal; animation: none; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .lens-hero picture, :root:not([data-theme="light"]) .lens-hero-breathe { mix-blend-mode: screen; }
+  :root:not([data-theme="light"]) .lens-hero img { -webkit-mask-image: radial-gradient(circle at 50% 50%, #000 52%, transparent 70%); mask-image: radial-gradient(circle at 50% 50%, #000 52%, transparent 70%); }
+  :root:not([data-theme="light"]) .lens-hero-warm img, :root:not([data-theme="light"]) .lens-hero-blue img { clip-path: none; }
+  :root:not([data-theme="light"]) .lens-hero-disc { display: none; }
+  :root:not([data-theme="light"]) .lens-hero-streak { opacity: 1; mix-blend-mode: screen; animation: lens-sweep 6s ease-in-out infinite; }
+}
+
+/* The atmosphere behind the landing: the glass in macro, blurred, very dark. Dark theme only. */
+.lens-backdrop { position: fixed; inset: 0; z-index: 0; pointer-events: none; overflow: hidden; opacity: 0.15; }
+.lens-backdrop picture, .lens-backdrop img { position: absolute; inset: -8%; width: 116%; height: 116%; max-width: none; object-fit: cover; }
+.lens-backdrop img { filter: blur(48px) saturate(1.15); }
+:root:not([data-theme="dark"]) .lens-backdrop { display: none; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .lens-backdrop { display: block; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .lens-hero-breathe, .lens-hero-blue, .lens-hero-streak { animation: none !important; }
+}
+
+.eve-landing { overflow-x: clip; }
+/* The blue render's sphere is larger in its frame (85%): its fade starts further out. */
+.lens-hero-blue img { -webkit-mask-image: radial-gradient(circle at 50% 50%, #000 61%, transparent 71%); mask-image: radial-gradient(circle at 50% 50%, #000 61%, transparent 71%); }
+:root:not([data-theme="dark"]) .lens-hero-blue img { -webkit-mask-image: none; mask-image: none; }
+
+/* Circular falloff: each render is cut to its own sphere with a hair of feather (no square or dark
+   ring can show against the backdrop, blend or not), and the rim glow is a separate round gradient. */
+.lens-hero-warm img { -webkit-mask-image: radial-gradient(circle closest-side at 50% 50%, #000 63%, transparent 67.5%); mask-image: radial-gradient(circle closest-side at 50% 50%, #000 63%, transparent 67.5%); }
+.lens-hero-blue img { -webkit-mask-image: radial-gradient(circle closest-side at 49.8% 49.3%, #000 81%, transparent 86%); mask-image: radial-gradient(circle closest-side at 49.8% 49.3%, #000 81%, transparent 86%); }
+.lens-hero-breathe::before {
+  content: ""; position: absolute; left: 50%; top: 50%; width: calc(var(--d) * 1.5); height: calc(var(--d) * 1.5);
+  transform: translate(-50%, -50%); border-radius: 50%; pointer-events: none;
+  background: radial-gradient(circle closest-side, rgba(42,60,255,0.30) 62%, rgba(111,143,240,0.10) 76%, transparent 100%);
+  filter: blur(10px);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .lens-hero-warm img { -webkit-mask-image: radial-gradient(circle closest-side at 50% 50%, #000 63%, transparent 67.5%); mask-image: radial-gradient(circle closest-side at 50% 50%, #000 63%, transparent 67.5%); }
+  :root:not([data-theme="light"]) .lens-hero-blue img { -webkit-mask-image: radial-gradient(circle closest-side at 49.8% 49.3%, #000 81%, transparent 86%); mask-image: radial-gradient(circle closest-side at 49.8% 49.3%, #000 81%, transparent 86%); }
+}
+:root:not([data-theme="dark"]) .lens-hero-breathe::before { display: none; }
+
+/* ── The hero loop: a 2.39 video screened onto black, the static sphere beneath until it plays ── */
+.hero-loop { position: relative; display: block; width: var(--d); height: var(--d); }
+.hero-static { position: absolute; inset: 0; }
+.hero-video {
+  position: absolute; left: 50%; top: 50%; height: calc(var(--d) / 0.62); width: calc(var(--d) / 0.62 * 2.39); max-width: none;
+  transform: translate(-50%, -50%); object-fit: cover; mix-blend-mode: screen; pointer-events: none;
+  -webkit-mask-image: radial-gradient(ellipse 50% 50% at 50% 50%, #000 70%, transparent 100%);
+  mask-image: radial-gradient(ellipse 50% 50% at 50% 50%, #000 70%, transparent 100%);
+}
+/* Light theme: the same loop, cut to the glass (the render's black never shows on a light page). */
+:root:not([data-theme="dark"]) .hero-video {
+  mix-blend-mode: normal; clip-path: none;
+  /* Cut just inside the glass: the render's dark rim never reaches a light page. */
+  -webkit-mask-image: radial-gradient(circle at 50% 50%, #000 calc(var(--d) * 0.445), transparent calc(var(--d) * 0.47));
+  mask-image: radial-gradient(circle at 50% 50%, #000 calc(var(--d) * 0.445), transparent calc(var(--d) * 0.47));
+}
+:root:not([data-theme="dark"]) .hero-loop { filter: drop-shadow(0 18px 40px rgba(0, 0, 0, 0.18)); }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .hero-video {
+    mix-blend-mode: screen; clip-path: none;
+    -webkit-mask-image: radial-gradient(ellipse 50% 50% at 50% 50%, #000 70%, transparent 100%);
+    mask-image: radial-gradient(ellipse 50% 50% at 50% 50%, #000 70%, transparent 100%);
+  }
+  :root:not([data-theme="light"]) .hero-loop { filter: none; }
+}
+@media (prefers-reduced-motion: reduce) { .hero-video { display: none !important; } .hero-static { opacity: 1 !important; } }
+
+/* ── The landing's one primary action: an Apple-grade pill ── */
+.eve-cta {
+  display: inline-flex; align-items: center; gap: 8px; height: 44px; padding: 0 22px 0 18px; border-radius: 999px; cursor: pointer;
+  font-size: 15px; font-weight: 600; letter-spacing: -0.01em; color: var(--on-primary); background: var(--primary);
+  box-shadow: 0 6px 20px -10px rgba(0,0,0,0.45);
+  transition: transform 140ms ease-out, opacity 200ms ease-out, box-shadow 200ms ease-out;
+}
+.eve-cta:hover { opacity: 0.92; }
+.eve-cta:active { transform: scale(0.97); transition-duration: 60ms; }
+.eve-cta:focus-within { outline: 2px solid color-mix(in oklab, var(--primary) 60%, transparent); outline-offset: 3px; }
+
+/* ── The wait: the lens loop, screened onto black ── */
+.lens-loader { position: relative; display: block; flex: none; }
+/* The loop is cut to its sphere: no black square or disc can show, whatever the blend context. */
+.lens-loader video {
+  position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; mix-blend-mode: screen;
+  -webkit-mask-image: radial-gradient(circle closest-side, #000 60%, transparent 69%);
+  mask-image: radial-gradient(circle closest-side, #000 60%, transparent 69%);
+}
+.lens-loader-disc { background: #000; box-shadow: 0 10px 30px -12px rgba(0,0,0,0.5); }
+.lens-loader-disc video { mix-blend-mode: normal; }
+@media (prefers-reduced-motion: reduce) { .lens-loader video { display: none; } .lens-loader { background: radial-gradient(circle at 40% 35%, #6f8ff0, #b8306f 55%, #000 72%); } }
+
+/* ── Quiet loading text: SF 13 px, secondary grey, a light sweep across it (seamless) ── */
+.eve-shimmer {
+  color: transparent; -webkit-background-clip: text; background-clip: text;
+  background-image: linear-gradient(90deg, rgba(255,255,255,0.42) 0%, rgba(255,255,255,0.42) 35%, rgba(255,255,255,0.92) 50%, rgba(255,255,255,0.42) 65%, rgba(255,255,255,0.42) 100%);
+  background-size: 200% 100%; background-repeat: repeat-x;
+  animation: eve-shimmer 2.4s linear infinite;
+}
+@keyframes eve-shimmer { from { background-position: 0% 0; } to { background-position: 200% 0; } }
+@media (prefers-reduced-motion: reduce) { .eve-shimmer { animation: none; color: rgba(255,255,255,0.5); background: none; } }
+

@@ -1,0 +1,17 @@
+CLAUDE.md
+AGENTS.md
+.claude/
+.codex/
+.env*
+node_modules
+public/ort
+dist
+submission/
+.DS_Store
+*.tsbuildinfo
+.smoke/
+.playwright-cli/
+*.log
+.vite/
+.vscode/
+.idea/

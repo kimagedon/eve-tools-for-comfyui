@@ -1,0 +1,55 @@
+{
+  "name": "eve-tools-for-comfyui",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A browser pre-viz studio on ComfyUI: one photo becomes a 3D film set you light, cover with real lenses and shoot with Qwen-Image-Edit-2511 and LTX-2.5.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kimagedon/eve-tools-for-comfyui.git"
+  },
+  "homepage": "https://github.com/kimagedon/eve-tools-for-comfyui#readme",
+  "keywords": [
+    "comfyui",
+    "previz",
+    "cinematography",
+    "virtual-production",
+    "qwen-image-edit",
+    "ltx-video",
+    "ltx-2",
+    "webgpu",
+    "depth-estimation",
+    "threejs"
+  ],
+  "type": "module",
+  "scripts": {
+    "postinstall": "node scripts/copy-ort.mjs",
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "build:pages": "tsc -b && vite build --mode pages",
+    "preview": "vite preview",
+    "preview:pages": "vite preview --mode pages",
+    "export-sample": "node scripts/export-sample.mjs"
+  },
+  "dependencies": {
+    "@base-ui/react": "^1.3.0",
+    "clsx": "^2.1.1",
+    "lucide-react": "^0.577.0",
+    "onnxruntime-web": "^1.23.2",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "tailwind-merge": "^3.5.0",
+    "three": "^0.180.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4",
+    "@types/node": "^24.13.3",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "@types/three": "^0.180.0",
+    "@vitejs/plugin-react": "^5",
+    "tailwindcss": "^4",
+    "typescript": "^5",
+    "vite": "^7"
+  }
+}

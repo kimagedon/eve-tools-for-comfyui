@@ -1,0 +1,157 @@
+{
+ "format": "eve-sample",
+ "v": 1,
+ "id": "night-diner",
+ "exported": "2026-10-30T14:23:23.091Z",
+ "project": {
+  "v": 1,
+  "steps": 4,
+  "photo": "photo.jpg",
+  "plate": "plate.jpg",
+  "litPlate": "lit.jpg",
+  "litPlan": "{\"l\":[{\"anchor\":[-1.3486912250518799,-0.0037755609955638647,-1.7989985942840576],\"normal\":[0.7561121582984924,0.026901211589574814,0.6538889408111572],\"kind\":\"point\",\"colour\":\"#ff4fd8\",\"strength\":1.2,\"offset\":0.3,\"role\":\"key\",\"fixture\":\"led\"},{\"anchor\":[1.7503440380096436,-0.004899958614259958,-2.334757089614868],\"normal\":[-0.5521143078804016,-0.01048196479678154,0.833702564239502],\"kind\":\"point\",\"colour\":\"#4da3ff\",\"strength\":1.2,\"offset\":0.3,\"role\":\"fill\",\"fixture\":\"led\"}],\"a\":\"dark\"}",
+  "step": "shoot",
+  "reached": 4,
+  "relief": "balanced",
+  "sensor": "s35",
+  "plan": {
+   "lights": [
+    {
+     "id": "l17933671174510",
+     "anchor": [
+      -1.3486912250518799,
+      -0.0037755609955638647,
+      -1.7989985942840576
+     ],
+     "normal": [
+      0.7561121582984924,
+      0.026901211589574814,
+      0.6538889408111572
+     ],
+     "kind": "point",
+     "colour": "#ff4fd8",
+     "strength": 1.2,
+     "offset": 0.3,
+     "role": "key",
+     "fixture": "led"
+    },
+    {
+     "id": "l17933671174511",
+     "anchor": [
+      1.7503440380096436,
+      -0.004899958614259958,
+      -2.334757089614868
+     ],
+     "normal": [
+      -0.5521143078804016,
+      -0.01048196479678154,
+      0.833702564239502
+     ],
+     "kind": "point",
+     "colour": "#4da3ff",
+     "strength": 1.2,
+     "offset": 0.3,
+     "role": "fill",
+     "fixture": "led"
+    }
+   ],
+   "ambient": "dark"
+  },
+  "cameras": [
+   {
+    "id": "cmvv0i04f0",
+    "slate": 0,
+    "template": "wide",
+    "cam": {
+     "azimuth": 0,
+     "elevation": 0,
+     "focal": 18,
+     "dolly": 1
+    },
+    "move": "dolly-in",
+    "focus": null
+   },
+   {
+    "id": "cmvv0ia891",
+    "slate": 1,
+    "template": "medium",
+    "cam": {
+     "azimuth": -8,
+     "elevation": 2,
+     "focal": 100,
+     "dolly": 0.85,
+     "target": [
+      0,
+      -0.2422633022069931,
+      -1.7167695760726929
+     ]
+    },
+    "move": "orbit-left",
+    "focus": null
+   },
+   {
+    "id": "cmvv0ifan2",
+    "slate": 2,
+    "template": "close",
+    "cam": {
+     "azimuth": 6,
+     "elevation": 0,
+     "focal": 226,
+     "dolly": 0.7,
+     "target": [
+      0,
+      -0.2422633022069931,
+      -1.7167695760726929
+     ]
+    },
+    "move": "push-in",
+    "focus": null
+   }
+  ],
+  "scenePrompt": "",
+  "order": [
+   "cmvv0i04f0",
+   "cmvv0ia891",
+   "cmvv0ifan2"
+  ],
+  "shots": {
+   "cmvv0i04f0": {
+    "status": "done",
+    "trim": [
+     0,
+     1
+    ],
+    "a": "cmvv0i04f0-a.jpg",
+    "b": "cmvv0i04f0-b.jpg",
+    "clip": "cmvv0i04f0.mp4",
+    "ga": "cmvv0i04f0-guide-a.jpg",
+    "gb": "cmvv0i04f0-guide-b.jpg"
+   },
+   "cmvv0ia891": {
+    "status": "done",
+    "trim": [
+     0,
+     1
+    ],
+    "a": "cmvv0ia891-a.jpg",
+    "b": "cmvv0ia891-b.jpg",
+    "clip": "cmvv0ia891.mp4",
+    "ga": "cmvv0ia891-guide-a.jpg",
+    "gb": "cmvv0ia891-guide-b.jpg"
+   },
+   "cmvv0ifan2": {
+    "status": "done",
+    "trim": [
+     0,
+     1
+    ],
+    "a": "cmvv0ifan2-a.jpg",
+    "b": "cmvv0ifan2-b.jpg",
+    "clip": "cmvv0ifan2.mp4",
+    "ga": "cmvv0ifan2-guide-a.jpg",
+    "gb": "cmvv0ifan2-guide-b.jpg"
+   }
+  },
+  "sample": "night-diner"
+ }
+}

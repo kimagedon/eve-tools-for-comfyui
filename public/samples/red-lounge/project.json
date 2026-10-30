@@ -1,0 +1,144 @@
+{
+ "format": "eve-sample",
+ "v": 1,
+ "id": "red-lounge",
+ "exported": "2026-10-30T14:28:19.063Z",
+ "project": {
+  "v": 1,
+  "steps": 4,
+  "photo": "photo.jpg",
+  "plate": "plate.jpg",
+  "litPlate": "lit.jpg",
+  "litPlan": "{\"l\":[{\"anchor\":[-0.5668213367462158,0.3755542039871216,-1.622003436088562],\"normal\":[0.8700182437896729,-0.022846005856990814,0.49248990416526794],\"kind\":\"spot\",\"colour\":\"#ffe2bf\",\"strength\":1.25,\"offset\":0.5,\"beam\":42,\"aim\":[0,-0.06713185459375381,-1.8159384727478027],\"role\":\"key\",\"fixture\":\"fresnel\"}],\"a\":\"dark\"}",
+  "step": "shoot",
+  "reached": 4,
+  "relief": "balanced",
+  "sensor": "s35",
+  "plan": {
+   "lights": [
+    {
+     "id": "l17933685461150",
+     "anchor": [
+      -0.5668213367462158,
+      0.3755542039871216,
+      -1.622003436088562
+     ],
+     "normal": [
+      0.8700182437896729,
+      -0.022846005856990814,
+      0.49248990416526794
+     ],
+     "kind": "spot",
+     "colour": "#ffe2bf",
+     "strength": 1.25,
+     "offset": 0.5,
+     "beam": 42,
+     "aim": [
+      0,
+      -0.06713185459375381,
+      -1.8159384727478027
+     ],
+     "role": "key",
+     "fixture": "fresnel"
+    }
+   ],
+   "ambient": "dark"
+  },
+  "cameras": [
+   {
+    "id": "cmvv1cgnx0",
+    "slate": 0,
+    "template": "wide",
+    "cam": {
+     "azimuth": 0,
+     "elevation": 0,
+     "focal": 16,
+     "dolly": 1
+    },
+    "move": "dolly-in",
+    "focus": null
+   },
+   {
+    "id": "cmvv1cr8c1",
+    "slate": 1,
+    "template": "medium",
+    "cam": {
+     "azimuth": -11,
+     "elevation": 2,
+     "focal": 50,
+     "dolly": 0.85,
+     "target": [
+      0,
+      -0.24691104888916016,
+      -1.5019971132278442
+     ]
+    },
+    "move": "orbit-left",
+    "focus": null
+   },
+   {
+    "id": "cmvv1cw7y2",
+    "slate": 2,
+    "template": "close",
+    "cam": {
+     "azimuth": 9,
+     "elevation": 0,
+     "focal": 122,
+     "dolly": 0.7,
+     "target": [
+      0,
+      -0.24691104888916016,
+      -1.5019971132278442
+     ]
+    },
+    "move": "push-in",
+    "focus": null
+   }
+  ],
+  "scenePrompt": "",
+  "order": [
+   "cmvv1cgnx0",
+   "cmvv1cr8c1",
+   "cmvv1cw7y2"
+  ],
+  "shots": {
+   "cmvv1cgnx0": {
+    "status": "done",
+    "trim": [
+     0,
+     1
+    ],
+    "a": "cmvv1cgnx0-a.jpg",
+    "b": "cmvv1cgnx0-b.jpg",
+    "clip": "cmvv1cgnx0.mp4",
+    "ga": "cmvv1cgnx0-guide-a.jpg",
+    "gb": "cmvv1cgnx0-guide-b.jpg"
+   },
+   "cmvv1cr8c1": {
+    "status": "done",
+    "trim": [
+     0,
+     1
+    ],
+    "a": "cmvv1cr8c1-a.jpg",
+    "b": "cmvv1cr8c1-b.jpg",
+    "clip": "cmvv1cr8c1.mp4",
+    "ga": "cmvv1cr8c1-guide-a.jpg",
+    "gb": "cmvv1cr8c1-guide-b.jpg"
+   },
+   "cmvv1cw7y2": {
+    "status": "done",
+    "trim": [
+     0,
+     1
+    ],
+    "a": "cmvv1cw7y2-a.jpg",
+    "b": "cmvv1cw7y2-b.jpg",
+    "clip": "cmvv1cw7y2.mp4",
+    "ga": "cmvv1cw7y2-guide-a.jpg",
+    "gb": "cmvv1cw7y2-guide-b.jpg"
+   }
+  },
+  "sample": "red-lounge"
+ }
+}
