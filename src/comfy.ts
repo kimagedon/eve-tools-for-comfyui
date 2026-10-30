@@ -49,7 +49,13 @@ const clientId = uid();
 
 /** "cloud" = Comfy Cloud through the app server's /cloud proxy (it holds the key). */
 export const isCloud = () => getServer() === 'cloud';
-const base = () => (isCloud() ? '/cloud' : getServer());
+/**
+ * Comfy Cloud refuses browser calls from other sites, so Cloud goes through a relay:
+ * the dev/preview server's /cloud proxy, or (on the hosted page) the public relay
+ * set at build time. The user's own key rides in each request; nothing is stored there.
+ */
+export const CLOUD_BASE: string = import.meta.env.VITE_CLOUD_RELAY || '/cloud';
+const base = () => (isCloud() ? CLOUD_BASE : getServer());
 
 /** Recording mode (?demo=1, remembered for the tab): the server is never named on screen. */
 export function isDemo(): boolean {

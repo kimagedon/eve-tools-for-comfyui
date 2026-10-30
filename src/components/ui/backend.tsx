@@ -6,7 +6,7 @@
  * "Reconnecting", only two in a row mean offline.
  */
 import { useEffect, useState } from "react";
-import { cloudHeaders, getCloudKey, getServer, isDemo, ping, serverLabel, setCloudKey, setServer } from "@/comfy";
+import { CLOUD_BASE, cloudHeaders, getCloudKey, getServer, isDemo, ping, serverLabel, setCloudKey, setServer } from "@/comfy";
 
 export type Backend = "local" | "remote" | "cloud";
 export const LOCAL_URL = "http://127.0.0.1:8188";
@@ -89,6 +89,8 @@ export function useServerStatus(url: string): Status {
 type CloudProxy = { proxy: boolean; serverKey: boolean };
 let cloudProbe: Promise<CloudProxy> | null = null;
 function probeCloud(): Promise<CloudProxy> {
+  // A hosted build talks to the public relay: it exists, and it never holds a key.
+  if (CLOUD_BASE !== "/cloud") return Promise.resolve({ proxy: true, serverKey: false });
   cloudProbe ??= fetch("/cloud/__status").then(async (r) => {
     if (!r.ok || !(r.headers.get("content-type") ?? "").includes("json")) return { proxy: false, serverKey: false };
     const j = await r.json();
@@ -101,7 +103,7 @@ type CloudCheck = "checking" | "connected" | "plan" | "invalid" | "nokey" | "err
 /** A real call with the key: only a 200 from /cloud/user means connected. */
 async function checkCloud(key: string): Promise<CloudCheck> {
   try {
-    const r = await fetch("/cloud/user", { headers: cloudHeaders(key) });
+    const r = await fetch(`${CLOUD_BASE}/user`, { headers: cloudHeaders(key) });
     if (r.ok) return "connected";
     const text = await r.text().catch(() => "");
     if (r.status === 402 || r.status === 429 || /FREE_TIER_NOT_ALLOWED/i.test(text)) return "plan";
@@ -211,7 +213,7 @@ export function BackendChooser({ tone = "page", onChosen, compact = false, trail
     ? (mode !== "local" ? null : status.state === "online" ? dot("online", "Connected") : status.state === "offline" ? dot("offline", 'Not running — start ComfyUI with --enable-cors-header "*"', true) : dot("checking", statusWord(status)))
     : open === "remote"
     ? (mode !== "remote" ? null : dot(status.state, statusWord(status), status.state === "offline"))
-    : cloudOff ? <span className={`text-[11.5px] ${quiet}`}>Needs the local app server</span>
+    : cloudOff ? <span className={`text-[11.5px] ${quiet}`}>Comfy Cloud works when you run the app locally — <a href="https://github.com/kimagedon/eve-tools-for-comfyui#run-it" target="_blank" rel="noreferrer" className="underline underline-offset-2 hover:text-[var(--foreground)]">npm run dev</a></span>
     : cloudState ? dot(cloudState === "connected" ? "online" : cloudState === "checking" ? "checking" : "offline", CLOUD_WORD[cloudState], cloudState !== "connected" && cloudState !== "checking") : null;
 
   const input = `h-7 min-w-0 flex-1 rounded-full px-3 font-mono text-[11px] outline-none ring-1 ring-inset focus-visible:ring-2 ${field}`;

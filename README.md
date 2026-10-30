@@ -119,7 +119,7 @@ It updates ComfyUI, downloads every model (resumable) and restarts it on `:8188`
 
 <br>
 
-Put `COMFY_CLOUD_API_KEY=...` in `.env` (needs a paid Comfy Cloud subscription), run `npm run dev` and choose Comfy Cloud. The dev server proxies `/cloud/*` and adds the key, so it never reaches the browser.
+Choose Comfy Cloud and paste your API key (platform.comfy.org → API Keys; needs an active Comfy Cloud subscription). The key stays in your browser. Comfy Cloud doesn't accept browser calls from other websites, so requests go through a thin relay that forwards your key and stores nothing: the local dev server's `/cloud` when you run `npm run dev`, and a public relay for the hosted page.
 </details>
 
 <details>

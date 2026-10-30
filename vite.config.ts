@@ -88,6 +88,8 @@ export default defineConfig(({ mode }) => {
     // The public build reads no .env file, so a private server address in
     // .env.local (VITE_COMFY_URL) is never baked into it.
     envDir: pages ? false : undefined,
+    // The hosted page reaches Comfy Cloud through the public relay (Cloud blocks other sites' browser calls).
+    define: pages ? { "import.meta.env.VITE_CLOUD_RELAY": JSON.stringify("https://oktabrj.com/comfy-cloud") } : {},
     plugins: [ortRaw, comfyCloud(env.COMFY_CLOUD_API_KEY), sampleExport(), react(), tailwindcss()],
     resolve: { alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) } },
   };
