@@ -1,6 +1,6 @@
 import { fileURLToPath, URL } from "node:url";
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { defineConfig, loadEnv, type Connect, type Plugin } from "vite";
+import { defineConfig, type Connect, type Plugin } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import { sampleExport } from "./scripts/sample-export-plugin";
@@ -22,12 +22,13 @@ const ortRaw: Plugin = {
 const CLOUD = "https://cloud.comfy.org/api";
 
 /**
- * Comfy Cloud through the dev/preview server: the browser calls /cloud/*, the
- * key stays here (COMFY_CLOUD_API_KEY in .env) and Cloud's CORS never applies.
+ * Comfy Cloud through the dev/preview server: the browser calls /cloud/* with
+ * the visitor's own key in X-Comfy-Cloud-Key (kept only in their browser) and
+ * Cloud's CORS never applies. This server holds no key of its own.
  * /view answers with a redirect to signed storage; it is followed here
  * without the key so the key never reaches the storage host.
  */
-function comfyCloud(envKey: string | undefined): Plugin {
+function comfyCloud(): Plugin {
   const handle: Connect.NextHandleFunction = async (req: IncomingMessage, res: ServerResponse, next) => {
     if (!req.url?.startsWith("/cloud/")) return next();
     // The key-bearing proxy answers this app only: same-origin requests, never another site or tab.
@@ -35,14 +36,14 @@ function comfyCloud(envKey: string | undefined): Plugin {
     let foreign = !!site && site !== "same-origin";
     try { if (origin && new URL(origin).host !== req.headers.host) foreign = true; } catch { foreign = true; }
     if (foreign) { res.statusCode = 403; res.end("same-origin only"); return; }
-    // The app asks whether the proxy is here and whether it holds a key of its own (never the key).
-    if (req.url === "/cloud/__status") { res.setHeader("Content-Type", "application/json"); res.end(JSON.stringify({ proxy: true, serverKey: !!envKey })); return; }
-    // The visitor's own key (kept in their browser) wins over the server's; neither is ever logged.
+    // The app asks whether the proxy is here.
+    if (req.url === "/cloud/__status") { res.setHeader("Content-Type", "application/json"); res.end(JSON.stringify({ proxy: true })); return; }
+    // The visitor's own key, from the header only; it is never stored or logged.
     const own = req.headers["x-comfy-cloud-key"];
-    const key = (Array.isArray(own) ? own[0] : own) || envKey;
+    const key = Array.isArray(own) ? own[0] : own;
     if (!key) {
       res.statusCode = 503;
-      res.end("No Comfy Cloud key: add one in the app, or COMFY_CLOUD_API_KEY in .env");
+      res.end("No Comfy Cloud key: paste your API key in the app");
       return;
     }
     try {
@@ -79,7 +80,6 @@ function comfyCloud(envKey: string | undefined): Plugin {
 const PAGES_BASE = "/eve-tools-for-comfyui/";
 
 export default defineConfig(({ mode }) => {
-  const env = loadEnv(mode, process.cwd(), "");
   // `--mode pages` (npm run build:pages / preview:pages): the static "try it"
   // build. VITE_BASE overrides the sub-path (and --base overrides both).
   const pages = mode === "pages";
@@ -90,7 +90,7 @@ export default defineConfig(({ mode }) => {
     envDir: pages ? false : undefined,
     // The hosted page reaches Comfy Cloud through the public relay (Cloud blocks other sites' browser calls).
     define: pages ? { "import.meta.env.VITE_CLOUD_RELAY": JSON.stringify("https://oktabrj.com/comfy-cloud") } : {},
-    plugins: [ortRaw, comfyCloud(env.COMFY_CLOUD_API_KEY), sampleExport(), react(), tailwindcss()],
+    plugins: [ortRaw, comfyCloud(), sampleExport(), react(), tailwindcss()],
     resolve: { alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) } },
   };
 });

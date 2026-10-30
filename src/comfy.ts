@@ -306,6 +306,13 @@ async function outputs(id: string): Promise<OutFile[]> {
 
 export async function cancel(id?: string) {
   const json = { 'Content-Type': 'application/json' };
+  // Comfy Cloud: only this tab's own job is cancelled (deleted by its prompt id). Its
+  // /interrupt is account-wide — it would kill the account's other sessions' jobs —
+  // so it is never sent there, and without an id nothing is touched.
+  if (isCloud()) {
+    if (id) await call('/queue', { method: 'POST', headers: json, body: JSON.stringify({ delete: [id] }) }).catch(() => {});
+    return;
+  }
   await call('/queue', { method: 'POST', headers: json, body: JSON.stringify({ delete: id ? [id] : [] }) }).catch(() => {});
   // With an id only that prompt is interrupted, if it is the one running; another
   // tab's or user's job on the same GPU is left alone.

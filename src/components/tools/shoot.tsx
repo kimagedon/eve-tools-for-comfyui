@@ -12,7 +12,7 @@ import { Slider } from "@/components/ui/slider";
 import { ComfyError, ping, pipeline, runEdit, runShot, serverLabel } from "@/comfy";
 import { FILL_GREY } from "@/lib/extend-fill";
 import type { DepthSurface } from "@/lib/depth-mesh";
-import { MOVES, sharedLook, TEMPLATES, endPose, motionPrompt, moveAmount, rackFocus, slateIndex, type RigCamera } from "@/lib/rig";
+import { MOVES, bodyOf, sharedLook, TEMPLATES, endPose, motionPrompt, moveAmount, rackFocus, slateIndex, type RigCamera } from "@/lib/rig";
 import { CROSSFADE, STILL_SECONDS, exportSequence, playSequence, type SequenceClip, type SequenceControl } from "@/lib/sequence";
 import { zip } from "@/lib/zip";
 import { aspectLabel, cameraLook, outputAspect, slate, takeName, type Sensor } from "@/lib/cine";
@@ -105,6 +105,22 @@ function exportBase(slates: string[], kind = "cut") {
   const range = slates.length ? (slates.length > 1 ? `${slates[0]}-${slates[slates.length - 1]}` : slates[0]) : "sc1";
   return `eve-tools-${range}-${kind}-${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}`;
 }
+
+/** Share of a guide that is the flat empty grey (what the photo never saw), 0–1. */
+async function greyShare(guide: Blob): Promise<number> {
+  const bmp = await createImageBitmap(guide);
+  const w = 160, h = Math.max(8, Math.round((160 * bmp.height) / bmp.width));
+  const c = new OffscreenCanvas(w, h), ctx = c.getContext("2d");
+  if (!ctx) { bmp.close(); return 0; }
+  ctx.drawImage(bmp, 0, 0, w, h);
+  bmp.close();
+  const d = ctx.getImageData(0, 0, w, h).data, g = parseInt(FILL_GREY.slice(1, 3), 16);
+  let grey = 0;
+  for (let i = 0; i < d.length; i += 4) if (Math.abs(d[i] - g) < 5 && Math.abs(d[i + 1] - g) < 5 && Math.abs(d[i + 2] - g) < 5) grey++;
+  return grey / (w * h);
+}
+/** From this much grey on, the plate goes along as image 2 so the fill matches the set. */
+const GREY_REFERENCE = 0.1;
 
 /** The plate cover-fitted into the 2.39 guide frame, so a beyond-reach still comes back at the cut's aspect. */
 async function coverFit(plate: Blob): Promise<Blob> {
@@ -261,13 +277,16 @@ export function Shoot({ plate, surface: rigSurface, cameras, prompt, shots, setS
   const still = async (c: RigCamera, cam: SceneCamera, signal: AbortSignal, focus = c.focus): Promise<{ img: Blob; guide: Blob }> => {
     if (!surface) throw new Error("The set has no 3D yet");
     const setup = reframeSetup(surface, cam, { fstop: focus?.fstop ?? null, aspect: aspectLabel(), recoverDetail: false, prompt });
-    const words = [setup.params.prompt, sharedLook(), cameraLook(sensor, c.lens)].filter(Boolean).join(" ");
+    const words = [setup.params.prompt, sharedLook(), cameraLook(bodyOf(c, sensor), c.lens)].filter(Boolean).join(" ");
     // Stills jump the ComfyUI queue: they are what the person waits to see.
     const opts = { signal, priority: "high" as const, onQueue: setAhead };
     // Past what the photo saw there is no honest view: the plate and the words go alone.
     const guide = await guideOf(cam, focus);
     if (setup.beyond) return { img: await runEdit([await coverFit(plate)], reframePrompt(setup.params.camera, words, undefined, setup.params.focus), opts), guide };
     if (signal.aborted) throw new Stopped();
+    // Much unseen grey: the plate rides along as image 2, so the grey is filled with this set, not invented (or left grey).
+    if ((await greyShare(guide).catch(() => 0)) >= GREY_REFERENCE)
+      return { img: await runEdit([guide, await coverFit(plate)], reframePrompt(setup.params.camera, words, "pair", setup.params.focus), opts), guide };
     return { img: await runEdit([guide], reframePrompt(setup.params.camera, words, "alone", setup.params.focus), opts), guide };
   };
 
@@ -311,7 +330,7 @@ export function Shoot({ plate, surface: rigSurface, cameras, prompt, shots, setS
   const makeClip = async (c: RigCamera, st: Stills, signal: AbortSignal): Promise<Blob> => {
     if (!surface) throw new Error("The set has no 3D yet");
     try {
-      return await runShot(st.a, st.b, { prompt: motionPrompt(c.move, [prompt, cameraLook(sensor, c.lens)].filter(Boolean).join(" "), moveAmount(surface, c.cam, c.move, c.amount)), width: st.width, height: st.height, seconds: SECONDS, audio: c.sound !== false }, { signal, onQueue: setAhead });
+      return await runShot(st.a, st.b, { prompt: motionPrompt(c.move, [prompt, cameraLook(bodyOf(c, sensor), c.lens)].filter(Boolean).join(" "), moveAmount(surface, c.cam, c.move, c.amount)), width: st.width, height: st.height, seconds: SECONDS, audio: c.sound !== false }, { signal, onQueue: setAhead });
     } catch (e) {
       const prev = before.current[c.id];
       if (!(prev?.clip && restore(c, prev, e, signal))) { if (signal.aborted) stopped(c.id); else update(c.id, { status: "storyboard", error: why(e) }); }
@@ -321,7 +340,7 @@ export function Shoot({ plate, surface: rigSurface, cameras, prompt, shots, setS
 
   const before = useRef<Shots>({});
   /** What a take depends on: the camera, its glass and move, the body, the lit plate and the notes. */
-  const setupOf = (c: RigCamera) => JSON.stringify([c.cam, c.move, c.amount ?? null, c.focus ?? null, c.lens ?? null, c.sound !== false, sensor, plate.size, prompt]);
+  const setupOf = (c: RigCamera) => JSON.stringify([c.cam, c.move, c.amount ?? null, c.focus ?? null, c.lens ?? null, c.sound !== false, bodyOf(c, sensor), plate.size, prompt]);
   const changed = (c: RigCamera | undefined, s: Shot | undefined) => !!c && !!s?.setup && (!!s.a || !!s.clip) && s.setup !== setupOf(c);
   /** Cameras waiting their turn in this run, in order. */
   const [queued, setQueued] = useState<string[]>([]);
@@ -414,7 +433,7 @@ export function Shoot({ plate, surface: rigSurface, cameras, prompt, shots, setS
     stopPlay.current = ctrl;
     setPlaying(mode);
     try {
-      const opts = { crossfade, signal: ctrl.signal, onTime: (t: number, total: number) => setTime({ t, total }), ...(mode === "play" ? follow : {}) };
+      const opts = { crossfade, aspect: outputAspect(), signal: ctrl.signal, onTime: (t: number, total: number) => setTime({ t, total }), ...(mode === "play" ? follow : {}) };
       if (mode === "export") {
         const { blob, ext } = await exportSequence(canvas.current, list, opts);
         if (!ctrl.signal.aborted) {
@@ -551,7 +570,7 @@ export function Shoot({ plate, surface: rigSurface, cameras, prompt, shots, setS
       while (!ctrl.signal.aborted && canvas.current) {
         const from = Math.min(startAt.current, clips.length - 1);
         startAt.current = 0;
-        try { await playSequence(canvas.current, clips, { crossfade, signal: ctrl.signal, onTime: (t, total) => setTime({ t, total }), from, ...follow }); } catch { break; }
+        try { await playSequence(canvas.current, clips, { crossfade, aspect: outputAspect(), signal: ctrl.signal, onTime: (t, total) => setTime({ t, total }), from, ...follow }); } catch { break; }
       }
     })();
     return () => { ctrl.abort(); seq.current = null; };
@@ -720,22 +739,16 @@ export function Shoot({ plate, surface: rigSurface, cameras, prompt, shots, setS
   const pill = "flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-[12.5px] font-semibold disabled:opacity-35";
   const exportControls = (
     <>
-      {one ? (
-        <button type="button" disabled={playing === "export"} onClick={single} className={`${pill} bg-white text-black hover:bg-white/90`}>
-          {playing === "export" ? <span>Recording…</span> : <><Download className="h-3.5 w-3.5" />Export</>}
-        </button>
-      ) : (
-        <>
-          <button type="button" disabled={!clips.length || !!playing && playing !== "play"} onClick={exportCut} title="The edit as one MP4: hard cuts, with sound"
-            className={`${pill} bg-white text-black hover:bg-white/90`}>
-            {playing === "export" ? <span>Recording…</span> : <><Download className="h-3.5 w-3.5" />Export cut</>}
-          </button>
-          <button type="button" disabled={!clips.length || zipping} onClick={() => void takes()} title="Every take, slate-named, with its stills — one .zip"
-            className={`${pill} text-white/85 ring-1 ring-inset ring-white/20 hover:bg-white/10`}>
-            {zipping ? <span className="eve-shimmer">Packing…</span> : <><Download className="h-3.5 w-3.5" />Export takes</>}
-          </button>
-        </>
-      )}
+      {/* One shot: the cut is that clip itself (no re-encode); its takes are still offered. */}
+      <button type="button" disabled={one ? playing === "export" : !clips.length || !!playing && playing !== "play"} onClick={one ? single : exportCut}
+        title={one ? "The shot as its own MP4, with sound" : "The edit as one MP4: hard cuts, with sound"}
+        className={`${pill} bg-white text-black hover:bg-white/90`}>
+        {playing === "export" ? <span>Recording…</span> : <><Download className="h-3.5 w-3.5" />Export cut</>}
+      </button>
+      <button type="button" disabled={!clips.length || zipping} onClick={() => void takes()} title="Every take, slate-named, with its stills — one .zip"
+        className={`${pill} text-white/85 ring-1 ring-inset ring-white/20 hover:bg-white/10`}>
+        {zipping ? <span className="eve-shimmer">Packing…</span> : <><Download className="h-3.5 w-3.5" />Export takes</>}
+      </button>
       {file && <a href={file.url} download={file.name} className="font-mono text-[11px] text-white/70 underline decoration-white/30 underline-offset-2 hover:decoration-white">{file.name}</a>}
       {mode === "result" && earlier.length > 0 && (
         <button type="button" aria-expanded={earlyOpen} onClick={() => { setEarlyOpen((v) => !v); if (earlyOpen) { setEarly(null); } }}

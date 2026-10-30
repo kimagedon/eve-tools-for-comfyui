@@ -58,13 +58,13 @@ export const LIBRARY: LibraryUnit[] = [
   U(S, "practical", "point", 3200, -1, "a soft, round, all-round glow, gentle wrap and soft shadows", { id: "lantern", label: "Chinese lantern", offset: 0.15 }),
   U(S, "practical", "point", 5600, 2, "a large, soft, shadowless overhead glow over the whole set", { id: "balloon", label: "Balloon light", offset: 0.5 }),
   U(S, "softbox", "point", 4300, -0.5, "very soft, wrapping bounced light, almost shadowless", { id: "book", label: "Book light", offset: 0.3 }),
-  U(S, "softbox", "point", 5600, 0.5, "large, very soft wrapping light through a big diffusion frame, feathered edges", { id: "frame12", label: "12×12 frame (bounce / diffusion)", offset: 0.55 }),
+  U(S, "softbox", "point", 5600, 0.5, "large, very soft wrapping light with feathered edges, like overcast daylight from one side", { id: "frame12", label: "12×12 frame (bounce / diffusion)", offset: 0.55 }),
   U(X, "fresnel", "spot", 5600, 1, "brief crisp flash, hard light with a hard specular catchlight", { id: "mono", label: "Monolight, bare", beam: 70, flash: true }),
-  U(X, "softbox", "point", 5600, 0.5, "brief crisp flash through a softbox: soft, even light with a square catchlight", { id: "monosb", label: "Monolight + softbox", flash: true, offset: 0.4 }),
+  U(X, "softbox", "point", 5600, 0.5, "brief crisp flash: soft, even light with a square catchlight", { id: "monosb", label: "Monolight + softbox", flash: true, offset: 0.4 }),
   U(X, "softbox", "point", 5600, 0.5, "brief crisp flash, large soft wrapping light with a round catchlight", { id: "octa", label: "Octabox", flash: true, offset: 0.45 }),
   U(X, "led", "point", 5600, 0, "brief crisp flash, a narrow soft strip of light that rims edges", { id: "strip", label: "Strip box", flash: true, offset: 0.3 }),
   U(X, "openface", "spot", 5600, 0.5, "brief crisp flash, punchy yet smooth light with sculpted falloff and a ring catchlight", { id: "dish", label: "Beauty dish", beam: 55, flash: true }),
-  U(X, "softbox", "point", 5600, 0.3, "brief crisp flash, broad soft spilling light through an umbrella", { id: "umbshoot", label: "Umbrella, shoot-through", flash: true, offset: 0.4 }),
+  U(X, "softbox", "point", 5600, 0.3, "brief crisp flash, broad soft spilling light", { id: "umbshoot", label: "Umbrella, shoot-through", flash: true, offset: 0.4 }),
   U(X, "softbox", "point", 5600, 0.3, "brief crisp flash, broad bounced light with a soft edge and a round catchlight", { id: "umbref", label: "Umbrella, reflective", flash: true, offset: 0.4 }),
   U(X, "led", "point", 5600, -0.5, "brief crisp flash straight from the lens axis: flat, even, a thin shadow halo and a ring catchlight", { id: "ring", label: "Ring flash", flash: true, offset: 0.1 }),
   U(X, "fresnel", "spot", 5600, -0.5, "brief crisp small flash, hard light with a small hard catchlight", { id: "speed", label: "Speedlight", beam: 50, flash: true }),
@@ -110,18 +110,19 @@ export function guideSize(w: number, h: number) {
  */
 type PresetLight = { u: number; v: number; model: string; role: LightRole; kelvin?: number; tint?: number; colour?: string; level?: number; offset?: number; beam?: number };
 /** Film-inspired looks by place (no names), in colour and in black & white, built from the fixture library. */
-export const PRESETS: { id: string; place: string; label: string; ambient: Ambient; mono?: boolean; lights: PresetLight[] }[] = [
-  { id: "hong-kong-neon-rain", place: "Hong Kong", label: "Neon rain", ambient: "dark", lights: [{ u: 0.12, v: 0.5, model: "neon", role: "practical", colour: "#ff3fd0", level: 1.2, offset: 0.25 }, { u: 0.5, v: 0.04, model: "h12", role: "key", colour: "#5dff8a", level: 1.2, beam: 60 }] },
+/** `words`: what the look needs that units alone cannot show (slat shadows, rain), added to the Relight prompt. */
+export const PRESETS: { id: string; place: string; label: string; ambient: Ambient; mono?: boolean; words?: string; lights: PresetLight[] }[] = [
+  { id: "hong-kong-neon-rain", place: "Hong Kong", label: "Neon rain", ambient: "dark", words: "A rainy night: every surface is wet and reflective, puddles and slick floors mirror the coloured neon in long smeared reflections, fine rain streaks catch the light, droplets bead on surfaces.", lights: [{ u: 0.12, v: 0.5, model: "neon", role: "practical", colour: "#ff3fd0", level: 1.2, offset: 0.25 }, { u: 0.5, v: 0.04, model: "h12", role: "key", colour: "#5dff8a", level: 1.2, beam: 60 }] },
   { id: "hong-kong-corridor-green", place: "Hong Kong", label: "Corridor green", ambient: "dark", lights: [{ u: 0.5, v: 0.04, model: "h12", role: "key", colour: "#4dff5e", level: 1.4, beam: 70 }, { u: 0.5, v: 0.03, model: "f4b", role: "fill", colour: "#6dff7e", level: 0.8 }] },
   { id: "tokyo-convenience-store", place: "Tokyo", label: "Convenience store", ambient: "bright", lights: [{ u: 0.35, v: 0.04, model: "hp18", role: "key", colour: "#e6fff2", level: 1.2, beam: 70 }, { u: 0.7, v: 0.03, model: "f4b", role: "fill", colour: "#e4fff0", level: 0.6 }] },
   { id: "tokyo-paper-lantern", place: "Tokyo", label: "Paper lantern", ambient: "dark", lights: [{ u: 0.3, v: 0.3, model: "lantern", role: "practical", kelvin: 2700, level: 0.8 }, { u: 0.7, v: 0.28, model: "lantern", role: "practical", kelvin: 2700, level: 0.7 }] },
   { id: "los-angeles-sodium-night", place: "Los Angeles", label: "Sodium night", ambient: "dark", lights: [{ u: 0.06, v: 0.12, model: "hp18", role: "key", colour: "#ff9a3c", level: 1.1, offset: 0.7, beam: 30 }, { u: 0.85, v: 0.4, model: "lsoft", role: "fill", colour: "#3e5fa8", level: 0.2 }] },
-  { id: "los-angeles-magic-hour", place: "Los Angeles", label: "Magic hour", ambient: "balanced", lights: [{ u: 0.03, v: 0.45, model: "h18", role: "key", colour: "#ffb36b", level: 1.15, offset: 0.8 }, { u: 0.98, v: 0.35, model: "frame12", role: "fill", kelvin: 7500, level: 0.3 }] },
+  { id: "los-angeles-magic-hour", place: "Los Angeles", label: "Magic hour", ambient: "balanced", words: "Magic hour: a very low, deep golden-orange sun just above the horizon, long warm shadows, a warm amber glow over everything it touches, a soft cool-blue sky fill in the shadows.", lights: [{ u: 0.03, v: 0.5, model: "h18", role: "key", colour: "#ff9a3d", level: 1.25, offset: 0.8 }, { u: 0.98, v: 0.35, model: "frame12", role: "fill", kelvin: 8000, level: 0.25 }] },
   { id: "mexico-golden-dust", place: "Mexico", label: "Golden dust", ambient: "bright", lights: [{ u: 0.1, v: 0.15, model: "h18", role: "key", colour: "#ffc24a", level: 1.3, offset: 0.8 }] },
   { id: "mexico-cantina", place: "Mexico", label: "Cantina", ambient: "dark", lights: [{ u: 0.3, v: 0.3, model: "bulb", role: "practical", kelvin: 2400, level: 0.7 }, { u: 0.65, v: 0.3, model: "bulb", role: "practical", kelvin: 2400, level: 0.6 }] },
   { id: "texas-diner-neon", place: "Texas", label: "Diner neon", ambient: "dark", lights: [{ u: 0.1, v: 0.45, model: "neon", role: "practical", colour: "#ff3030", level: 1.1, offset: 0.25 }, { u: 0.9, v: 0.45, model: "neon", role: "practical", colour: "#3f7bff", level: 1.1, offset: 0.25 }] },
   { id: "texas-desert-noon", place: "Texas", label: "Desert noon", ambient: "bright", lights: [{ u: 0.5, v: 0.0, model: "h18", role: "key", kelvin: 5600, level: 1.4, offset: 0.8 }] },
-  { id: "russia-winter-window", place: "Russia", label: "Winter window", ambient: "dark", lights: [{ u: 0.02, v: 0.3, model: "frame12", role: "key", colour: "#cfe0ff", level: 0.85 }] },
+  { id: "russia-winter-window", place: "Russia", label: "Winter window", ambient: "dark", words: "Cold, soft winter daylight spills in from an unseen window beyond the left edge of the frame; the window itself and any light source stay out of shot.", lights: [{ u: 0.02, v: 0.3, model: "frame12", role: "key", colour: "#cfe0ff", level: 0.85 }] },
   { id: "russia-kitchen-lamp", place: "Russia", label: "Kitchen lamp", ambient: "dark", lights: [{ u: 0.5, v: 0.12, model: "bulb", role: "practical", kelvin: 2700, level: 0.9, offset: 0.1 }] },
   { id: "paris-café-night", place: "Paris", label: "Café night", ambient: "dark", lights: [{ u: 0.35, v: 0.35, model: "lamp", role: "practical", kelvin: 2700, level: 0.7 }, { u: 0.9, v: 0.3, model: "hp18", role: "fill", colour: "#7f9fe0", level: 0.35, offset: 0.6 }] },
   { id: "rome-baroque-candle", place: "Rome", label: "Baroque candle", ambient: "dark", lights: [{ u: 0.45, v: 0.85, model: "candle", role: "key", kelvin: 1900, level: 1.0, offset: 0.06 }] },
@@ -132,7 +133,7 @@ export const PRESETS: { id: string; place: string; label: string; ambient: Ambie
   { id: "studio-silhouette", place: "Studio", label: "Silhouette", ambient: "dark", lights: [{ u: 0.5, v: 0.3, model: "h12", role: "back", kelvin: 5600, level: 1.4 }] },
   { id: "studio-moonlight-blue", place: "Studio", label: "Moonlight blue", ambient: "dark", lights: [{ u: 0.12, v: 0.08, model: "h4", role: "key", colour: "#8fb4ff", level: 0.9, offset: 0.6 }, { u: 0.85, v: 0.4, model: "lsoft", role: "fill", colour: "#4d6fb3", level: 0.18 }] },
   { id: "studio-firelight", place: "Studio", label: "Firelight", ambient: "dark", lights: [{ u: 0.45, v: 0.92, model: "fire", role: "key", colour: "#ff7a1f", level: 1.1, offset: 0.12 }] },
-  { id: "new-york-noir-slats", place: "New York", label: "Noir slats", ambient: "dark", mono: true, lights: [{ u: 0.75, v: 0.08, model: "t5k", role: "key", kelvin: 4300, level: 1.45, offset: 0.6, beam: 22 }] },
+  { id: "new-york-noir-slats", place: "New York", label: "Noir slats", ambient: "dark", mono: true, words: "Film-noir key through venetian blinds: hard, crisp venetian-blind slat shadows fall as parallel diagonal stripes of light and dark across the subject and the wall behind; everything outside the striped pool falls into deep shadow.", lights: [{ u: 0.8, v: 0.1, model: "t5k", role: "key", kelvin: 4300, level: 1.5, offset: 0.6, beam: 16 }] },
   { id: "paris-nouvelle-vague-daylight", place: "Paris", label: "Nouvelle vague daylight", ambient: "bright", mono: true, lights: [{ u: 0.02, v: 0.25, model: "frame12", role: "key", kelvin: 5600, level: 0.9 }] },
   { id: "rome-neorealist-street", place: "Rome", label: "Neorealist street", ambient: "balanced", mono: true, lights: [{ u: 0.4, v: 0.0, model: "h18", role: "key", kelvin: 5600, level: 1.1, offset: 0.8 }] },
   { id: "tokyo-high-contrast-alley", place: "Tokyo", label: "High-contrast alley", ambient: "dark", mono: true, lights: [{ u: 0.85, v: 0.1, model: "hp4", role: "key", kelvin: 5600, level: 1.4, offset: 0.6, beam: 20 }] },
@@ -149,7 +150,7 @@ const PRESET_THROW: Partial<Record<Fixture, number>> = { softbox: 0.08, led: 0.1
 const middle = (s: DepthSurface) => surfacePoint(s, 0.5, 0.55).anchor;
 
 /** A preset's lights hung on this surface (back units behind the subject). */
-export function presetLights(s: DepthSurface, id: string): { lights: SceneLight[]; ambient: Ambient } | null {
+export function presetLights(s: DepthSurface, id: string): { lights: SceneLight[]; ambient: Ambient; words?: string } | null {
   const preset = PRESETS.find((p) => p.id === id);
   if (!preset) return null;
   const aim = middle(s);
@@ -166,7 +167,7 @@ export function presetLights(s: DepthSurface, id: string): { lights: SceneLight[
     };
     return l.role === "back" ? { ...unit, ...behindSubject(s, unit) } : unit;
   });
-  return { lights, ambient: preset.ambient };
+  return { lights, ambient: preset.ambient, words: preset.words };
 }
 
 /** How far out from its surface a light hangs, by name. */

@@ -146,11 +146,28 @@ const NEGATIVE =
 const SIGMAS = '1.0, 0.99375, 0.9875, 0.98125, 0.975, 0.909375, 0.725, 0.421875, 0.0';
 const REFINE_SIGMAS = '0.85, 0.7250, 0.4219, 0.0';
 
-/** LTX dims: multiples of 32, frame count 8n+1. */
-export function ltxSize(width: number, height: number, longSide = 1280) {
+/**
+ * The delivery frame: the exact aspect of the shot (the keyed stills), long
+ * side `longSide`, even sides for H.264. This is what the saved mp4 is.
+ */
+export function deliverySize(width: number, height: number, longSide = 1280) {
   const s = longSide / Math.max(width, height);
-  const r = (v: number) => Math.max(256, Math.round((v * s) / 64) * 64);
-  return { width: r(width), height: r(height) };
+  const e = (v: number) => Math.max(2, Math.round((v * s) / 2) * 2);
+  return { width: e(width), height: e(height) };
+}
+
+/**
+ * LTX dims: multiples of 64 (the VAE's 32-px grid, halved once more by the
+ * two-stage i2v), frame count 8n+1. Each side is the grid size nearest the
+ * delivery frame, so the picture is squeezed at most ~6 % on one axis; the
+ * graph scales the decoded frames back to the exact delivery size, so the
+ * saved clip has the exact aspect and the exact framing of the keyed stills
+ * (no crop, no stretch in the result).
+ */
+export function ltxSize(width: number, height: number, longSide = 1280) {
+  const d = deliverySize(width, height, longSide);
+  const r = (v: number) => Math.max(256, Math.round(v / 64) * 64);
+  return { width: r(d.width), height: r(d.height) };
 }
 const frames = (seconds: number, fps: number) => Math.round((seconds * fps) / 8) * 8 + 1;
 
@@ -169,7 +186,7 @@ function ltxBase(p: ShotParams, w: number, h: number) {
       neg: n('CLIPTextEncode', { clip: ['clip', 0], text: NEGATIVE }),
       cond: n('LTXVConditioning', { positive: ['pos', 0], negative: ['neg', 0], frame_rate: fps }),
       load1: n('LoadImage', { image: p.first }, 'First frame'),
-      size1: n('ImageScale', { image: ['load1', 0], upscale_method: 'lanczos', width: w, height: h, crop: 'center' }),
+      size1: n('ImageScale', { image: ['load1', 0], upscale_method: 'lanczos', width: w, height: h, crop: 'disabled' }),
       pre1: n('LTXVPreprocess', { image: ['size1', 0], img_compression: 18 }),
       alat: n('LTXVEmptyLatentAudio', { audio_vae: ['avae', 0], frames_number: len, frame_rate: fps, batch_size: 1 }),
       noise: n('RandomNoise', { noise_seed: p.seed }),
@@ -197,12 +214,14 @@ function describeFirstFrame(g: ApiGraph, prompt: string) {
   g.pos.inputs.text = ['fullPrompt', 0];
 }
 
-function ltxDecode(g: ApiGraph, av: [string, number], fps: number, audio: boolean) {
+function ltxDecode(g: ApiGraph, av: [string, number], fps: number, audio: boolean, out: { width: number; height: number }) {
   g.split = n('LTXVSeparateAVLatent', { av_latent: av });
   g.decode = n('VAEDecodeTiled', { samples: ['split', 0], vae: ['vae', 0], tile_size: 512, overlap: 64, temporal_size: 64, temporal_overlap: 16 });
   // LTX-2.5 always samples picture and sound together; a silent shot just skips decoding the sound.
   if (audio) g.adecode = n('LTXVAudioVAEDecode', { samples: ['split', 1], audio_vae: ['avae', 0] });
-  const frames = mono(g, ['decode', 0]);
+  // Back from the LTX grid to the exact delivery frame (the inverse of the input squeeze).
+  g.deliver = n('ImageScale', { image: ['decode', 0], upscale_method: 'lanczos', width: out.width, height: out.height, crop: 'disabled' }, 'Delivery size');
+  const frames = mono(g, ['deliver', 0]);
   g.video = n('CreateVideo', audio ? { images: frames, audio: ['adecode', 0], fps } : { images: frames, fps });
   g.save = n('SaveVideo', { video: ['video', 0], filename_prefix: 'eve-tools/shot', format: 'mp4', codec: 'h264' }, 'Output');
 }
@@ -214,7 +233,7 @@ export function shotFlfGraph(p: ShotParams): ApiGraph {
   const { fps, len, nodes: g } = ltxBase(p, w, h);
   if (p.describe ?? DESCRIBE_DEFAULT) describeFirstFrame(g, monoPrompt(p.prompt));
   g.load2 = n('LoadImage', { image: p.last }, 'Last frame');
-  g.size2 = n('ImageScale', { image: ['load2', 0], upscale_method: 'lanczos', width: w, height: h, crop: 'center' });
+  g.size2 = n('ImageScale', { image: ['load2', 0], upscale_method: 'lanczos', width: w, height: h, crop: 'disabled' });
   g.pre2 = n('LTXVPreprocess', { image: ['size2', 0], img_compression: 18 });
   g.vlat = n('EmptyLTXVLatentVideo', { width: w, height: h, length: len, batch_size: 1 });
   g.guide1 = n('LTXVAddGuide', { positive: ['cond', 0], negative: ['cond', 1], vae: ['vae', 0], latent: ['vlat', 0], image: ['pre1', 0], frame_idx: 0, strength: 0.7 });
@@ -225,7 +244,7 @@ export function shotFlfGraph(p: ShotParams): ApiGraph {
   g.split0 = n('LTXVSeparateAVLatent', { av_latent: ['sample', 0] });
   g.crop = n('LTXVCropGuides', { positive: ['guide2', 0], negative: ['guide2', 1], latent: ['split0', 0] });
   g.av2 = n('LTXVConcatAVLatent', { video_latent: ['crop', 2], audio_latent: ['split0', 1] });
-  ltxDecode(g, ['av2', 0], fps, p.audio ?? true);
+  ltxDecode(g, ['av2', 0], fps, p.audio ?? true, deliverySize(p.width, p.height));
   return g;
 }
 
@@ -247,6 +266,6 @@ export function shotI2vGraph(p: ShotParams): ApiGraph {
   g.noise2 = n('RandomNoise', { noise_seed: 42 });
   g.sigmas2 = n('ManualSigmas', { sigmas: REFINE_SIGMAS });
   g.sample2 = n('SamplerCustomAdvanced', { noise: ['noise2', 0], guider: ['guider', 0], sampler: ['sampler', 0], sigmas: ['sigmas2', 0], latent_image: ['av2', 0] });
-  ltxDecode(g, ['sample2', 0], fps, p.audio ?? true);
+  ltxDecode(g, ['sample2', 0], fps, p.audio ?? true, deliverySize(p.width, p.height));
   return g;
 }

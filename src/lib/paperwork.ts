@@ -5,8 +5,8 @@
  */
 import type { DepthSurface } from "./depth-mesh";
 import { lens } from "./camera-lens";
-import { LENSES, SENSORS, cameraHeight, frameMm, metres, outputAspect, slate, takeName, tilt, type Sensor } from "./cine";
-import { MOVES, TEMPLATES, type RigCamera } from "./rig";
+import { LENSES, SENSORS, cameraHeight, frameMm, metres, outputAspect, slate, takeName, type Sensor } from "./cine";
+import { MOVES, TEMPLATES, lookTilt, type RigCamera } from "./rig";
 import { lightPoint, type SceneLight } from "@/components/tools/depth-scene";
 import { FIXTURES, ROLES } from "@/components/tools/scene-rig";
 
@@ -32,12 +32,12 @@ export function cameraReport(s: DepthSurface, sensor: Sensor, shots: ReportShot[
   const rows = shots.map(({ camera: c, index, seconds, ext, take, takes }) => [
     slate(index),
     TEMPLATES.find((t) => t.id === c.template)?.label ?? "",
-    Math.round(frameMm(s, c.cam.focal ?? s.baseFocal, sensor)),
-    SENSORS[sensor].label,
+    Math.round(frameMm(s, c.cam.focal ?? s.baseFocal, c.sensor ?? sensor)),
+    SENSORS[c.sensor ?? sensor].label,
     LENSES[c.lens ?? "clean"].label,
     c.focus ? `T${c.focus.fstop.toFixed(1)}` : "",
     cameraHeight(s, c.cam).toFixed(2),
-    tilt(c.cam),
+    Math.round(lookTilt(s, c.cam)),
     MOVES.find((m) => m.id === c.move)?.label ?? "",
     c.sound === false ? "off" : "on",
     seconds.toFixed(2),

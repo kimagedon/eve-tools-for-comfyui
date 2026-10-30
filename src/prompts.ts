@@ -80,7 +80,8 @@ export function relightPrompt(lightsJson: unknown, ambient: unknown, extra: unkn
     return i === 0 ? "Key light" : i === 1 ? "Fill light" : "Accent light";
   };
   const power = (s: number) => (s >= 1.1 ? "very strong, hard" : s >= 0.75 ? "strong, hard" : s >= 0.45 ? "medium, soft" : "gentle, very soft");
-  const reach = (d = 1) => (d <= 0.75 ? ", placed very close: a bright pool of light with fast falloff and deep contrast"
+  // Never "placed very close" alone: told that, the model draws the unit into the picture.
+  const reach = (d = 1) => (d <= 0.75 ? ", close to the subject yet out of shot (the source itself is never visible): a bright pool of light with fast falloff and deep contrast"
     : d >= 1.4 ? ", far away: broad, even light with long, parallel shadows" : "");
   const source = (l: StudioLight) => l.kind === "spot" ? `spotlight (a ${Math.round(l.beam ?? 35)}° cone with a soft edge, a defined pool of light and darkness outside it)`
     : l.kind === "sun" ? "sunlight (parallel, hard-edged light with crisp, long shadows)" : "light";
@@ -103,8 +104,9 @@ export function relightPrompt(lightsJson: unknown, ambient: unknown, extra: unkn
     + (hasPractical
       ? "The practical light is a source already in the photo: it glows where it is, nothing new is added for it. Every other lighting unit is off camera, outside the frame: show only the light it casts. "
       : "All lighting units are off camera, outside the frame: show only the light they cast. ")
-    + "Do not add any lamp, light panel, softbox, light stand, cable or other new object to the image — the set dressing stays exactly as it is."
-    + (pair ? " Image 2 is a rough 3D preview of exactly this setup on the same scene: match where its light pools fall, their colours, their falloff and the direction of its shadows — but take every detail, texture and the photographic quality from image 1. The result is image 1, relit; never copy image 2's flat, plastic look." : "")
+    + "The light sources are outside the frame: never add lamps, light panels, softboxes, bounce cards, diffusion frames, umbrellas, reflectors, stands, cables or any other object — the set dressing stays exactly as it is. "
+    + "The sky stays sky and the far background stays as it is: no glowing shape, panel or lamp appears in it, and only light falls on the scene."
+    + (pair ? " Image 2 is a rough 3D preview of exactly this setup on the same scene: match where its light pools fall, their colours, their falloff and the direction of its shadows (its bright areas are light falling on surfaces, never objects) — but take every detail, texture and the photographic quality from image 1. The result is image 1, relit; never copy image 2's flat, plastic look." : "")
     + (add ? ` Also: ${add}` : "");
 }
 
@@ -158,12 +160,12 @@ export function reframePrompt(cameraJson: unknown, extra: unknown, guide?: unkno
     + "Keep the viewpoint, perspective, framing and the position and size of everything exactly as shown, fill every grey area with a natural, seamless continuation of the scene, and repair the stretched and torn parts. ";
   if (guide === "pair") {
     return `Image 1 is a rough 3D re-projection of image 2 (the original photo) from a new camera position: the camera ${turn}, ${rise}${zoom}. ${fix}`
-      + "Take every person, object, identity, texture, colour and the lighting from image 2. The result is a clean, real photograph of image 2's scene from image 1's viewpoint, with no grey left."
+      + "Take every person, object, identity, texture, colour and the lighting from image 2. Image 2 is the set: fill every grey area consistently with it — the same walls, floor, sky, materials and light continuing naturally — never flat grey, never a new room. The result is a clean, real photograph of image 2's scene from image 1's viewpoint, with no grey left."
       + (add ? ` Also: ${add}` : "");
   }
   if (guide === "alone") {
     return `This image is a rough 3D re-projection of a photo seen from a new camera position (the camera ${turn}, ${rise}${zoom}). ${fix}`
-      + "Same style, colours and lighting. The result is a clean, real photograph from exactly this viewpoint, with no grey left."
+      + "Same style, colours and lighting. Fill the grey areas naturally as the same place continuing, never as flat grey or a blank wall. The result is a clean, real photograph from exactly this viewpoint, with no grey left."
       + (add ? ` Also: ${add}` : "");
   }
   const far = Math.abs(a) > 100 ? " The camera is now on the far side, looking back at the scene from behind: everything the original camera never saw — the backs of objects and people, the other side of the room — must be invented to match what is visible, in the same place, scale and style."

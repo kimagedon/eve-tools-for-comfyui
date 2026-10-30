@@ -72,6 +72,8 @@ export interface PlayOptions {
   onShot?: (i: number) => void;
   /** Start at this shot. */
   from?: number;
+  /** Delivery aspect (width / height): the canvas is this frame and every shot is cover-fitted into it, never stretched. Default: the first shot's own. */
+  aspect?: number;
   /** Handles for the running sequence: jump to a shot, turn the sound on. */
   control?: (c: SequenceControl) => void;
 }
@@ -106,9 +108,12 @@ export async function playSequence(canvas: HTMLCanvasElement, clips: SequenceCli
       o.audio.ctx.createMediaElementSource(v).connect(l.gain).connect(o.audio.dest);
     }
   }
-  const long = 1920 / Math.max(loaded[0].w, loaded[0].h);
-  canvas.width = Math.round(loaded[0].w * Math.min(1, long));
-  canvas.height = Math.round(loaded[0].h * Math.min(1, long));
+  // The frame: the delivery aspect at the first shot's resolution (long side ≤ 1920, even sides for H.264).
+  const a = o.aspect && Number.isFinite(o.aspect) && o.aspect > 0 ? o.aspect : loaded[0].w / loaded[0].h;
+  const long = Math.min(1920, Math.max(loaded[0].w, loaded[0].h));
+  const even = (v: number) => Math.max(2, Math.round(v / 2) * 2);
+  canvas.width = even(a >= 1 ? long : long * a);
+  canvas.height = even(a >= 1 ? long / a : long);
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("No 2D canvas here");
   o.onStart?.();

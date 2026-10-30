@@ -370,7 +370,7 @@ function composite(renderer: THREE.WebGLRenderer, post: Post, scene: THREE.Scene
 
 /** `handle`: the dark backing disc (also the hit target); `core` the light's colour; `rim` white; `ring` marks the selected one. */
 /** Spot / Sun also get `aimHandle` + `aimRing` (where it points, draggable) and `beam`, the line to it. */
-type LightRig = { kind: LightKind; light: THREE.PointLight | THREE.SpotLight | THREE.DirectionalLight; handle: THREE.Mesh; core: THREE.Mesh; rim: THREE.Mesh; halo: THREE.Sprite; ring: THREE.Mesh; plate: THREE.Mesh; beam: THREE.Line; aimHandle: THREE.Mesh; aimRing: THREE.Mesh };
+type LightRig = { kind: LightKind | "hemi"; light: THREE.PointLight | THREE.SpotLight | THREE.DirectionalLight; handle: THREE.Mesh; core: THREE.Mesh; rim: THREE.Mesh; halo: THREE.Sprite; ring: THREE.Mesh; plate: THREE.Mesh; beam: THREE.Line; aimHandle: THREE.Mesh; aimRing: THREE.Mesh };
 
 interface World {
   renderer: THREE.WebGLRenderer;
@@ -396,6 +396,8 @@ interface World {
   rig3d: LightRig3D;
   /** Near-field softening of point/spot falloff (d0², scene units). */
   near2: { value: number };
+  /** Where the far background (sky) begins and is fully reached, in set depth: it receives no unit's light. */
+  farRange: { value: THREE.Vector2 };
   reticle: THREE.Mesh;
   glow: THREE.Texture;
   surface: DepthSurface | null;
@@ -835,13 +837,27 @@ export const DepthScene = forwardRef<DepthSceneHandle, {
     // Near-field softening: a unit right against a wall must not multiply the photo's albedo
     // without bound (that reveals its JPEG chroma noise as coloured speckle). Falloff 1/(d² + d0²).
     const near2 = { value: 0 };
+    // Set depths where the far background (sky) starts and is fully reached: [start, end], 0,0 = off.
+    const farRange = { value: new THREE.Vector2(0, 0) };
     const softNear = (m: THREE.Material) => {
       const prev = m.onBeforeCompile;
       m.onBeforeCompile = (shader, r) => {
         prev.call(m, shader, r);
         shader.uniforms.uNear2 = near2;
-        shader.fragmentShader = "uniform float uNear2;\n" + shader.fragmentShader.replace("#include <lights_pars_begin>",
+        shader.uniforms.uFarRange = farRange;
+        // The set depth of each fragment (the mesh lives in the photo camera's space).
+        shader.vertexShader = "varying float vSetDepth;\n" + shader.vertexShader.replace("#include <project_vertex>", "vSetDepth = -transformed.z;\n#include <project_vertex>");
+        shader.fragmentShader = "uniform float uNear2;\nuniform vec2 uFarRange;\nvarying float vSetDepth;\n" + shader.fragmentShader.replace("#include <lights_pars_begin>",
           THREE.ShaderChunk.lights_pars_begin.replace("1.0 / max( pow( lightDistance, decayExponent ), 0.01 )", "1.0 / ( pow( lightDistance, decayExponent ) + uNear2 )"))
+          // Sky and the far background keep the photo's own light: a unit on the set never paints a pool
+          // (which the model reads as a softbox or a lamp) onto them. Direct light also never adds more
+          // than about the surface's own albedo again: no blown, fixture-shaped hotspots.
+          .replace("#include <lights_fragment_end>", `#include <lights_fragment_end>
+{
+  float farK = uFarRange.y > uFarRange.x ? 1.0 - 0.92 * smoothstep(uFarRange.x, uFarRange.y, vSetDepth) : 1.0;
+  reflectedLight.directDiffuse = min(reflectedLight.directDiffuse * farK, diffuseColor.rgb * 1.6 + 0.04);
+  reflectedLight.directSpecular *= farK;
+}`)
           // Highlights roll off as one colour instead of clipping channel by channel (which turns photo noise into coloured speckle).
           .replace("#include <opaque_fragment>", "{ float m = max(max(outgoingLight.r, outgoingLight.g), outgoingLight.b); if (m > 0.75) outgoingLight *= (0.75 + 0.25 * (1.0 - exp(-(m - 0.75) / 0.25))) / m; }\n#include <opaque_fragment>");
       };
@@ -881,7 +897,7 @@ export const DepthScene = forwardRef<DepthSceneHandle, {
     // The rim follows the plate's GPU shape (relief / reveal / flattening past the reach) like the surface it lies on.
     rig3d.rim.material.onBeforeCompile = (shader) => shaped(shader, shape);
     scene.add(rig3d.root, rig3d.rim);
-    world.current = { renderer, post: null, scene, camera, mesh, seam, seamBasic, seamStandard, hole, proxy, texture: null, basic, standard, ambient, rigs: new Map(), rig3d, near2, reticle, glow, surface: null, shape };
+    world.current = { renderer, post: null, scene, camera, mesh, seam, seamBasic, seamStandard, hole, proxy, texture: null, basic, standard, ambient, rigs: new Map(), rig3d, near2, farRange, reticle, glow, surface: null, shape };
     return () => {
       cancelAnimationFrame(frame.current);
       frame.current = 0;
@@ -1391,6 +1407,12 @@ function sync(w: World, p: { lit: boolean; lights?: SceneLight[]; ambient?: numb
   const throws = (p.lit ? p.lights ?? [] : []).filter((l) => (l.kind ?? "point") !== "sun").map((l) => l.offset * s.scale * 0.25);
   // Never below a few percent of the set's height: a unit put right on the floor stays smooth too.
   w.near2.value = throws.length ? Math.max(Math.min(...throws), 0.04 * s.scale) ** 2 : 0;
+  {
+    // The far background: the last stretch of measured depth, where a depth model piles the sky and the
+    // horizon. Only on open sets (the farthest point well past the middle); a room's back wall keeps its light.
+    const far = -s.bounds.min[2];
+    if (far > s.pivot * 1.3) w.farRange.value.set(far * 0.86, far * 0.96); else w.farRange.value.set(0, 0);
+  }
   if (p.focus && handles) {
     const at = new THREE.Vector3(...p.focus.point);
     w.reticle.visible = true;
@@ -1402,10 +1424,16 @@ function sync(w: World, p: { lit: boolean; lights?: SceneLight[]; ambient?: numb
   for (const [id, rig] of w.rigs) if (!lights.some((l) => l.id === id)) { disposeRig(w, rig); w.rigs.delete(id); }
   for (const l of lights) {
     const kind = l.kind ?? "point";
+    // An off-camera bulb-type unit lights the set in front of it, not the surface it hangs off:
+    // drawn as a hemisphere (a 180° spot with a cosine edge) facing out from its anchor towards the set's middle.
+    // Omni, that surface got a bright disc right behind the unit, which the model drew as a softbox / lamp.
+    // A practical stays omni: it glows where it is and lights its own wall.
+    const emitter: LightKind | "hemi" = kind === "point" && l.role !== "practical" ? "hemi" : kind;
     let rig = w.rigs.get(l.id);
-    if (rig && rig.kind !== kind) { disposeRig(w, rig); w.rigs.delete(l.id); rig = undefined; }
+    if (rig && rig.kind !== emitter) { disposeRig(w, rig); w.rigs.delete(l.id); rig = undefined; }
     if (!rig) {
-      const light = kind === "spot" ? new THREE.SpotLight(0xffffff, 1, 0, Math.PI / 6, 0.6, 2)
+      const light = emitter === "hemi" ? new THREE.SpotLight(0xffffff, 1, 0, Math.PI / 2, 1, 2)
+        : kind === "spot" ? new THREE.SpotLight(0xffffff, 1, 0, Math.PI / 6, 0.6, 2)
         : kind === "sun" ? new THREE.DirectionalLight(0xffffff, 1) : new THREE.PointLight(0xffffff, 1, 0, 2);
       if (light instanceof THREE.SpotLight || light instanceof THREE.DirectionalLight) w.scene.add(light.target);
       const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: w.glow, depthTest: false, depthWrite: false, transparent: true, blending: THREE.AdditiveBlending, opacity: 0.6 }));
@@ -1420,7 +1448,7 @@ function sync(w: World, p: { lit: boolean; lights?: SceneLight[]; ambient?: numb
       const aimHandle = flat(new THREE.CircleGeometry(2.4, 32), 0x000000, 0.35);
       const aimRing = flat(new THREE.RingGeometry(1.1, 1.45, 32), 0xffffff, 0.95);
       [beamLine, halo, handle, plate, rim, core, ring, aimHandle, aimRing].forEach((o, i) => { o.renderOrder = 10 + i; });
-      rig = { kind, light, handle, core, rim, halo, ring, plate, beam: beamLine, aimHandle, aimRing };
+      rig = { kind: emitter, light, handle, core, rim, halo, ring, plate, beam: beamLine, aimHandle, aimRing };
       w.scene.add(light, beamLine, halo, handle, plate, rim, core, ring, aimHandle, aimRing);
       w.rigs.set(l.id, rig);
     }
@@ -1434,7 +1462,17 @@ function sync(w: World, p: { lit: boolean; lights?: SceneLight[]; ambient?: numb
       : kind === "spot" ? Math.PI * 2.4 * 1.6 * l.strength * Math.max(at.distanceTo(aim), l.offset * s.scale) ** 2
       : pointIntensity(s, l);
     rig.light.position.copy(at);
-    if (rig.light instanceof THREE.SpotLight) {
+    if (emitter === "hemi" && rig.light instanceof THREE.SpotLight) {
+      // Facing: out from where it hangs, turned towards the set's middle.
+      const out = at.clone().sub(new THREE.Vector3(...l.anchor));
+      if (out.lengthSq() < 1e-10) out.set(...l.normal);
+      const facing = out.normalize().add(new THREE.Vector3(0, 0, -s.pivot).sub(at).normalize());
+      if (facing.lengthSq() < 1e-8) facing.set(0, 0, -1);
+      rig.light.angle = Math.PI / 2;
+      rig.light.penumbra = 1;
+      rig.light.target.position.copy(at).add(facing.normalize().multiplyScalar(s.scale));
+      rig.light.target.updateMatrixWorld();
+    } else if (rig.light instanceof THREE.SpotLight) {
       rig.light.angle = Math.min(80, Math.max(6, l.beam ?? 35)) * DEG / 2;
       rig.light.penumbra = 0.55;
     }

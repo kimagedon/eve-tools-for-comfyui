@@ -71,6 +71,8 @@ export function loadOrt(): Promise<typeof Ort> {
     // No cross-origin isolation in the WebView: threads would fail to start.
     ort.env.wasm.numThreads = 1;
     ort.env.wasm.proxy = false;
+    // Only warnings and worse reach the console (its info lines were logged as errors).
+    ort.env.logLevel = "warning";
     return ort;
   }).catch((error) => { ortPromise = null; throw error; });
   return ortPromise;

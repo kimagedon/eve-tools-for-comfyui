@@ -85,7 +85,7 @@
       "upscale_method": "lanczos",
       "width": 1280,
       "height": 512,
-      "crop": "center"
+      "crop": "disabled"
     }
   },
   "pre1": {
@@ -188,7 +188,7 @@
       "upscale_method": "lanczos",
       "width": 1280,
       "height": 512,
-      "crop": "center"
+      "crop": "disabled"
     }
   },
   "pre2": {
@@ -399,11 +399,27 @@
       ]
     }
   },
+  "deliver": {
+    "class_type": "ImageScale",
+    "inputs": {
+      "image": [
+        "decode",
+        0
+      ],
+      "upscale_method": "lanczos",
+      "width": 1280,
+      "height": 536,
+      "crop": "disabled"
+    },
+    "_meta": {
+      "title": "Delivery size"
+    }
+  },
   "video": {
     "class_type": "CreateVideo",
     "inputs": {
       "images": [
-        "decode",
+        "deliver",
         0
       ],
       "audio": [

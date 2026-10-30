@@ -160,7 +160,10 @@ export class LightRig3D {
       if (!u) { u = this.build(fixture); this.units.set(l.id, u); }
       u.mount.visible = u.stand.visible = o.fixtures;
       if (!o.fixtures) continue;
-      const size = UNIT_SIZE[fixture] * o.scale;
+      // Its real size on the set, but never filling the frame: a unit pulled close to the lens
+      // (an 18K hung far out lands near the camera) is drawn at most ~7 % of the view's height.
+      const near = r.at.distanceTo(o.camera.position) * Math.tan((o.camera.fov * Math.PI) / 360) * 2 * 0.07;
+      const size = Math.min(UNIT_SIZE[fixture] * o.scale, near);
       u.mount.position.copy(r.at);
       u.mount.scale.setScalar(size);
       // Points where the light goes: a spot or the sun at its aim, a soft source at what it lights.
@@ -457,9 +460,8 @@ export class LightRig3D {
         // The Fresnel lens's stepped rings.
         for (const r of [0.14, 0.24, 0.33]) add(head, new THREE.RingGeometry(r, r + 0.022, 28), this.dark).position.z = -0.01;
         barnDoors(0.52);
-        if (big) add(mount, new THREE.BoxGeometry(0.8, 0.36, 0.6).translate(0, -1.7, -0.1), this.metal);
-        yoke(0.6, big ? 1.25 : 0.85);
-        if (big) drop = 2.1;
+        // The big head sits in a deeper yoke whose spigot goes straight into the stand (drop = yoke + spigot).
+        yoke(0.6, big ? 1.1 : 0.85);
         break;
       }
       case "openface": {
@@ -611,11 +613,10 @@ export class LightRig3D {
         break;
       }
       case "neon": {
-        // A bent neon line on a thin back plate.
+        // A bent neon line: only the thin glowing tube and its soft glow — no backing plate (that read as a black box over the photo).
         const curve = new THREE.CatmullRomCurve3([new THREE.Vector3(-1, -0.3, 0), new THREE.Vector3(-0.5, 0.3, 0), new THREE.Vector3(0, -0.2, 0), new THREE.Vector3(0.5, 0.3, 0), new THREE.Vector3(1, -0.1, 0)]);
-        add(head, new THREE.TubeGeometry(curve, 48, 0.05, 8), glowing());
-        add(head, new THREE.PlaneGeometry(2.3, 0.9).translate(0, 0, -0.08), this.dark);
-        halo(1);
+        add(head, new THREE.TubeGeometry(curve, 64, 0.03, 8), glowing());
+        halo(0.8);
         drop = 0;
         break;
       }

@@ -40,6 +40,18 @@ export const LENSES: Record<LensLook, { label: string; short: string; look: stri
 /** The words a still and a clip are prompted with for this camera and glass. */
 export const cameraLook = (sensor: Sensor, lens: LensLook = "clean") => `${SENSORS[sensor].look}; ${LENSES[lens].look}.`;
 export const PRIMES = [14, 18, 25, 35, 50, 75, 100, 135];
+/**
+ * The lenses a body really offers. Cinema and film bodies take the primes (real mm
+ * on that gate); a phone has its fixed modules and a compact its zoom stops, both
+ * named as photographers know them — full-frame equivalent (ultra-wide 13, main 24,
+ * 2× 48, tele 77 on a phone). `mm` is the lens on the body's own sensor.
+ */
+const EQUIVALENT_STOPS: Partial<Record<Sensor, number[]>> = { phone: [13, 24, 48, 77], compact: [24, 28, 35, 50, 70, 105] };
+export function lensStops(sensor: Sensor): { mm: number; label: string; equivalent: boolean }[] {
+  const eq = EQUIVALENT_STOPS[sensor];
+  if (!eq) return PRIMES.map((p) => ({ mm: p, label: String(p), equivalent: false }));
+  return eq.map((e) => ({ mm: e / SENSORS[sensor].crop, label: String(e), equivalent: true }));
+}
 
 /** The scene's full-frame-equivalent focal → the lens on this sensor, and back. */
 export const lensMm = (equivalent: number, sensor: Sensor) => equivalent / SENSORS[sensor].crop;

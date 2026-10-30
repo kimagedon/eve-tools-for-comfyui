@@ -10,8 +10,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Play, Plus, Trash2, Volume2, VolumeX } from "lucide-react";
 import { Slider } from "@/components/ui/slider";
 import { BASE_FOCAL, orbitLimits, surfacePoint, type DepthSurface } from "@/lib/depth-mesh";
-import { MAX_CAMERAS, MOVES, TEMPLATES, pickSubject, endPose, moveAmount, newCamera, nextSlate, slateIndex, rackFocus, subjectPoint, templateCamera, type RigCamera, type Template } from "@/lib/rig";
-import { LENSES, PRIMES, SENSORS, SENSOR_GROUPS, aspectLabel, outputAspect, cameraHeight, equivalentMm, frameMm, hfov, lensMm, sceneFocal, slate, subjectDistance, tilt, type LensLook, type Sensor } from "@/lib/cine";
+import { MAX_CAMERAS, MOVES, TEMPLATES, bodyOf, lookTilt, pickSubject, endPose, moveAmount, newCamera, nextSlate, slateIndex, rackFocus, subjectPoint, templateCamera, type RigCamera, type Template } from "@/lib/rig";
+import { LENSES, SENSORS, SENSOR_GROUPS, aspectLabel, outputAspect, cameraHeight, equivalentMm, frameMm, hfov, lensMm, lensStops, sceneFocal, slate, subjectDistance, type LensLook, type Sensor } from "@/lib/cine";
 import { FOCAL, FSTOP, RELIEF, reframeSetup, type Relief } from "./scene-rig";
 import { DOLLY, DepthScene, lightPoint, type DepthSceneHandle, type SceneCamera, type SceneLight } from "./depth-scene";
 import { Viewfinder } from "@/components/ui/cine";
@@ -229,9 +229,13 @@ export function CameraRig({ source, onNext, relief, cameras, onCameras, onSurfac
    * the lens a step (the reverse is past the photo by design, so it is left).
    */
   const fit = async (c: RigCamera) => {
-    if (!surface || !blob || c.template === "reverse") return;
+    if (!surface || !blob) return;
+    const lim = orbitLimits(surface);
+    // A pose past the reach is past the photo by design: left as it is.
+    if (Math.abs(c.cam.azimuth) > lim.azimuth + 0.5 || Math.abs(c.cam.elevation) > lim.elevation + 0.5) return;
     let focal = c.cam.focal ?? surface.baseFocal;
-    for (let k = 0; k < 9; k++) {
+    // The wide stays the whole set: at most three small steps tighter.
+    for (let k = 0; k < (c.template === "wide" ? 3 : 9); k++) {
       const shot = await renderGuide({ image: blob, surface, ...(outputAspect() >= 1 ? { width: Math.round(100 * outputAspect()), height: 100 } : { width: 100, height: Math.round(100 / outputAspect()) }), camera: { ...c.cam, focal }, lit: false, background: FILL_GREY }).catch(() => null);
       if (!shot || !(await greyEdges(shot))) break;
       focal = Math.min(500, focal * 1.08);
@@ -256,6 +260,8 @@ export function CameraRig({ source, onNext, relief, cameras, onCameras, onSurfac
   // Templates never frame tighter than ~3× the plate's own pixels at that spot (an output still is ~1536 px wide).
   const maxZoom = size ? Math.max(1, (3 * size.w) / 1536) : Infinity;
   const sel = cameras.find((c) => c.id === selected) ?? cameras[0];
+  // The body is per camera; the scene's (last chosen) body is the default for cameras from before.
+  const body: Sensor = sel ? bodyOf(sel, sensor) : sensor;
   const update = (patch: Partial<RigCamera>) => { if (sel) onCameras((cs) => cs.map((c) => (c.id === sel.id ? { ...c, ...patch } : c))); };
   // Editing while the move plays pauses into the start key (the one being edited).
   const setCam = (cam: SceneCamera) => { setPreview((p) => (p === "play" ? "start" : p)); update({ cam }); };
@@ -266,7 +272,9 @@ export function CameraRig({ source, onNext, relief, cameras, onCameras, onSurfac
     if (!surface || cameras.length >= MAX_CAMERAS) return;
     const used = new Set(cameras.map((c) => c.template));
     const t = TEMPLATES.find((x) => !used.has(x.id))?.id ?? "medium";
-    const c = newCamera(surface, t, cameras.length, sensor, nextSlate(cameras), subject ?? undefined, maxZoom);
+    // A new camera starts on the previous camera's body.
+    const prev = sel ?? cameras[cameras.length - 1];
+    const c = newCamera(surface, t, cameras.length, prev ? bodyOf(prev, sensor) : sensor, nextSlate(cameras), subject ?? undefined, maxZoom);
     onCameras((cs) => [...cs, c]);
     setSelected(c.id);
   };
@@ -278,7 +286,8 @@ export function CameraRig({ source, onNext, relief, cameras, onCameras, onSurfac
   };
   const applyTemplate = (t: Template) => {
     if (!surface || !sel) return;
-    update({ template: t, cam: templateCamera(surface, t, sensor, subject ?? sel.cam.target ?? subjectPoint(surface), maxZoom), move: TEMPLATES.find((x) => x.id === t)!.move });
+    // The wide is the whole set: never on macro glass.
+    update({ template: t, cam: templateCamera(surface, t, body, subject ?? sel.cam.target ?? subjectPoint(surface), maxZoom), move: TEMPLATES.find((x) => x.id === t)!.move, ...(t === "wide" && sel.lens === "macro" ? { lens: "clean" as const } : {}) });
     setPreview("play");
   };
 
@@ -302,9 +311,12 @@ export function CameraRig({ source, onNext, relief, cameras, onCameras, onSurfac
 
   const idx = sel ? cameras.indexOf(sel) : 0;
   // The lens that frames the 2.39 cut on this sensor (the scene's focal is anchored to the plate's aspect).
-  const toMm = (f: number) => (surface ? frameMm(surface, f, sensor) : lensMm(f, sensor));
-  const toFocal = (mmv: number) => (surface ? sceneFocal(surface, mmv, sensor) : equivalentMm(mmv, sensor));
-  const mm = Math.round(toMm(sel?.cam.focal ?? base));
+  const toMm = (f: number) => (surface ? frameMm(surface, f, body) : lensMm(f, body));
+  const toFocal = (mmv: number) => (surface ? sceneFocal(surface, mmv, body) : equivalentMm(mmv, body));
+  const mmExact = toMm(sel?.cam.focal ?? base);
+  const mm = Math.round(mmExact);
+  // Phones and compacts are named by their full-frame equivalent.
+  const mmEq = Math.round(mmExact * SENSORS[body].crop);
   // The field takes the lens on this sensor; the scene's 4–500 mm (full-frame equivalent) is its range.
   const mmRange: [number, number] = [Math.ceil(toMm(4)), Math.floor(toMm(500))];
   const [flash, setFlash] = useState(false);
@@ -315,14 +327,15 @@ export function CameraRig({ source, onNext, relief, cameras, onCameras, onSurfac
   };
   // Every lens change (prime, mm field, template, body, another camera) says itself once, big and quiet, in the frame.
   const [readout, setReadout] = useState<{ text: string; sub: string; on: boolean; light?: boolean } | null>(null);
-  const lensKey = `${mm}|${sensor}|${sel?.lens ?? "clean"}`;
+  const lensKey = `${mm}|${body}|${sel?.lens ?? "clean"}`;
   const lastLens = useRef<string | null>(null);
   useEffect(() => {
     if (!ready) return;
     const was = lastLens.current;
     lastLens.current = lensKey;
     if (was == null || was === lensKey) return;
-    setReadout({ text: `${mm} mm`, sub: `${SENSORS[sensor].label} · ${LENSES[sel?.lens ?? "clean"].short} · ${Math.round(hfov(mm, sensor))}°`, on: true });
+    const eqv = lensStops(body)[0]?.equivalent;
+    setReadout({ text: eqv ? `${mmEq} mm` : `${mm} mm`, sub: `${SENSORS[body].label}${eqv ? ` · equivalent, ${mmExact.toFixed(1)} mm actual` : ""} · ${LENSES[sel?.lens ?? "clean"].short} · ${Math.round(hfov(mm, body))}°`, on: true });
     // Ink follows the picture under the text: dark on a light frame, light on a dark one (sampled as the zoom lands too).
     const sample = () => {
       void scene.current?.luma([0.3, 0.38, 0.4, 0.26]).then((l) => { if (l != null) setReadout((r) => r && { ...r, light: l > 0.55 }); });
@@ -332,13 +345,14 @@ export function CameraRig({ source, onNext, relief, cameras, onCameras, onSurfac
     return () => { clearTimeout(t); clearTimeout(s2); cancelAnimationFrame(f); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lensKey, ready]);
-  const info = sel && surface ? [stale ? "Relight stale" : "", slate(sel ? slateIndex(sel, cameras) : idx), TEMPLATES.find((t) => t.id === sel.template)?.label, `${MOVES.find((m) => m.id === sel.move)?.label} · ${moveAmount(surface, sel.cam, sel.move, sel.amount)}`, `${mm} mm ${SENSORS[sensor].short}`, `HFOV ${Math.round(hfov(mm, sensor))}°`,
-    sel.focus ? `T${sel.focus.fstop.toFixed(1)}` : "", `≈${cameraHeight(surface, sel.cam).toFixed(1)} m high`, `tilt ${tilt(sel.cam) > 0 ? "+" : ""}${tilt(sel.cam)}°`,
+  const info = sel && surface ? [stale ? "Relight stale" : "", slate(sel ? slateIndex(sel, cameras) : idx), TEMPLATES.find((t) => t.id === sel.template)?.label, `${MOVES.find((m) => m.id === sel.move)?.label} · ${moveAmount(surface, sel.cam, sel.move, sel.amount)}`, `${mm} mm ${SENSORS[body].short}`, `HFOV ${Math.round(hfov(mm, body))}°`,
+    sel.focus ? `T${sel.focus.fstop.toFixed(1)}` : "", `≈${cameraHeight(surface, sel.cam).toFixed(1)} m high`, `tilt ${Math.round(lookTilt(surface, sel.cam)) > 0 ? "+" : ""}${Math.round(lookTilt(surface, sel.cam))}°`,
     `≈${subjectDistance(surface, sel.cam).toFixed(1)} m to subject`].filter(Boolean).join(" · ") : "";
   // Past ~12 mm or ~200 mm (full-frame equivalent) one still cannot hold the frame: say so.
   const eq = sel?.cam.focal ?? base;
   const notice = failed && !building ? failed : setup?.beyond ? "Beyond the lens' reach — the model invents what the photo never saw"
     : eq < 12 || eq > 200 ? "Past what the still resolves — the model invents most of the frame"
+      : sel?.template === "reverse" && Math.abs(sel.cam.azimuth) <= reach.azimuth + 0.5 ? "Reverse at the furthest honest angle — drag the camera round the plot for a full reverse (the model invents it)"
       : stale ? "Relight is stale — the plan changed after Relight" : undefined;
   // A rack is previewed as it will be shot: focus near at the start, far at the end.
   const rack = surface && sel?.move === "rack-focus" ? rackFocus(surface, sel.focus?.fstop ?? 2, sel.amount) : null;
@@ -371,8 +385,11 @@ export function CameraRig({ source, onNext, relief, cameras, onCameras, onSurfac
               {readout && (
                 <div aria-hidden className="pointer-events-none absolute flex flex-col items-center justify-center ease-out"
                   style={{ left: view.x, top: view.y, width: view.w, height: view.h, opacity: readout.on ? 1 : 0, transition: `opacity ${readout.on ? 150 : 600}ms ease-out` }}>
-                  <div className="tabular-nums" style={{ fontFamily: '-apple-system, "SF Pro Display", system-ui, sans-serif', fontSize: 48, fontWeight: 400, letterSpacing: "-0.02em", lineHeight: 1, color: readout.light ? "#111" : "rgba(255,255,255,0.85)", textShadow: readout.light ? "0 2px 24px rgba(255,255,255,0.5)" : "0 2px 28px rgba(0,0,0,0.55)", transition: "color 200ms" }}>{readout.text}</div>
-                  <div className="mt-2 text-[12px] tracking-[0.01em]" style={{ color: readout.light ? "rgba(17,17,17,0.75)" : "rgba(255,255,255,0.6)", textShadow: readout.light ? "0 1px 10px rgba(255,255,255,0.5)" : "0 1px 12px rgba(0,0,0,0.6)" }}>{readout.sub}</div>
+                  {/* A soft scrim always sits behind the readout, so it reads on any plate (a white cyc, sky, snow). */}
+                  <div className="flex flex-col items-center rounded-[32px] px-7 py-4" style={{ background: "rgba(0,0,0,0.4)", boxShadow: "0 0 48px 28px rgba(0,0,0,0.4)" }}>
+                    <div className="tabular-nums" style={{ fontFamily: '-apple-system, "SF Pro Display", system-ui, sans-serif', fontSize: 48, fontWeight: 400, letterSpacing: "-0.02em", lineHeight: 1, color: "rgba(255,255,255,0.94)", textShadow: "0 1px 18px rgba(0,0,0,0.55)" }}>{readout.text}</div>
+                    <div className="mt-2 text-[12px] tracking-[0.01em]" style={{ color: "rgba(255,255,255,0.78)", textShadow: "0 1px 10px rgba(0,0,0,0.6)" }}>{readout.sub}</div>
+                  </div>
                 </div>
               )}
             </>
@@ -415,10 +432,18 @@ export function CameraRig({ source, onNext, relief, cameras, onCameras, onSurfac
         ))}
       </div>
       <div className="flex items-center gap-1.5">
-        <select aria-label="Camera" title="Camera / format" value={sensor} onChange={(e) => {
+        <select aria-label={`Camera body of ${slate(slateIndex(sel, cameras))}`} title={`Camera / format of ${slate(slateIndex(sel, cameras))} (this camera only)`} value={body} onChange={(e) => {
           const next = e.target.value as Sensor;
-          // A camera keeps its lens when the body changes: same mm, a different field of view.
-          if (surface) onCameras((cs) => cs.map((c) => ({ ...c, cam: { ...c.cam, focal: Math.min(500, Math.max(4, sceneFocal(surface, frameMm(surface, c.cam.focal ?? surface.baseFocal, sensor), next))) } })));
+          // Only this camera changes body, and it keeps its lens: same mm, a different field of view.
+          // Cameras from before per-camera bodies are pinned to the body they had, so they never reframe.
+          onCameras((cs) => cs.map((c) => {
+            if (c.id !== sel.id) return c.sensor ? c : { ...c, sensor };
+            const was = bodyOf(c, sensor);
+            // A phone or a compact has no interchangeable glass: switching to or from one keeps the framing instead.
+            const fixedGlass = lensStops(was)[0]?.equivalent || lensStops(next)[0]?.equivalent;
+            const focal = surface && !fixedGlass ? Math.min(500, Math.max(4, sceneFocal(surface, frameMm(surface, c.cam.focal ?? surface.baseFocal, was), next))) : c.cam.focal;
+            return { ...c, sensor: next, cam: { ...c.cam, focal } };
+          }));
           onSensor(next);
         }}
           className="h-7 w-[104px] cursor-pointer truncate rounded-full bg-white/10 px-2 text-[12px] font-medium text-white outline-none ring-1 ring-inset ring-white/15" style={{ colorScheme: "dark" }}>
@@ -429,13 +454,17 @@ export function CameraRig({ source, onNext, relief, cameras, onCameras, onSurfac
           ))}
         </select>
         <div role="radiogroup" aria-label="Prime" className="flex gap-0.5 rounded-full bg-white/[0.08] p-0.5">
-          {PRIMES.map((p) => (
-            <button key={p} type="button" role="radio" aria-checked={mm === p} onClick={() => { setMm(p); setMmText(null); }} className={`${pill(mm === p)} !px-2 tabular-nums`}>{p}</button>
-          ))}
+          {lensStops(body).map((p) => {
+            const on = p.equivalent ? mmEq === Number(p.label) : mm === p.mm;
+            return (
+              <button key={p.label} type="button" role="radio" aria-checked={on} title={p.equivalent ? `${p.label} mm equivalent (${p.mm.toFixed(1)} mm on this sensor)` : `${p.label} mm`}
+                onClick={() => { setMm(p.equivalent ? p.mm : Math.round(p.mm)); setMmText(null); }} className={`${pill(on)} !px-2 tabular-nums`}>{p.label}</button>
+            );
+          })}
         </div>
         <input aria-label="Focal length, mm" inputMode="numeric" value={mmText ?? String(mm)} onChange={(e) => setMmText(e.target.value)}
           onBlur={() => { const v = Number(mmText); if (mmText != null && Number.isFinite(v) && v > 0) setMm(v); setMmText(null); }}
-          title={`${mmRange[0]}–${mmRange[1]} mm on ${SENSORS[sensor].label}`}
+          title={`${mmRange[0]}–${mmRange[1]} mm on ${SENSORS[body].label}`}
           onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
           className={`h-7 w-12 rounded-full bg-white/[0.08] px-2 text-center text-[12px] tabular-nums text-white outline-none ring-1 ring-inset transition-shadow duration-200 ${flash ? "ring-[#ff453a]" : "ring-white/15"} focus-visible:ring-white/40`} />
         <span className="text-[11.5px] text-white/50">mm</span>

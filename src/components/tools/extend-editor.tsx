@@ -74,6 +74,14 @@ function presetSides(ratio: number, w: number, h: number): ExtendSides {
   return { left: 0, right: 0, top: y, bottom: y };
 }
 
+/** A preset's sides held to MAX_SIDE; `clamped` when the shape could not be reached (a very tall or wide still). */
+function presetFit(ratio: number, w: number, h: number): { sides: ExtendSides; clamped: boolean } {
+  const s = presetSides(ratio, w, h);
+  const clamped = Math.max(s.left, s.right, s.top, s.bottom) > MAX_SIDE + 1e-6;
+  const c = (v: number) => Math.min(MAX_SIDE, v);
+  return { sides: { left: c(s.left), right: c(s.right), top: c(s.top), bottom: c(s.bottom) }, clamped };
+}
+
 /**
  * True when the room around the original came back as one flat colour —
  * a model that declined to fill it and answered with the grey canvas.
@@ -118,6 +126,8 @@ export function ExtendStudio({ source, onResult, onNext }: StudioProps) {
   const { phase, setPhase, editing, run: runJob, revealed, back, ahead, onQueue } = useStudioRun("Qwen-Image-Edit", onResult);
   const [sides, setSides] = useState<ExtendSides>(NONE);
   const [preset, setPreset] = useState("scope");
+  // The preset's shape is out of reach within MAX_SIDE: a quiet note says so.
+  const [clamped, setClamped] = useState(false);
   const [more, setMore] = useState<{ left: number; bottom: number } | null>(null);
   const [prompt, setPrompt] = useState("");
   const { ref: stageRef, stage } = useStage();
@@ -183,6 +193,7 @@ export function ExtendStudio({ source, onResult, onNext }: StudioProps) {
     (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
     setDrag({ handle, x: event.clientX, y: event.clientY, start: sides, scale, pin: handle === "move" ? { x: frame.x, y: frame.y } : { x: photo.x, y: photo.y } });
     setDragging(handle);
+    setClamped(false);
     if (phase.kind === "failed") setPhase({ kind: "edit" });
   };
   const move = (event: React.PointerEvent) => {
@@ -232,14 +243,14 @@ export function ExtendStudio({ source, onResult, onNext }: StudioProps) {
     setPreset(id);
     if (phase.kind === "failed") setPhase({ kind: "edit" });
     const r = PRESETS.find((p) => p.id === id)?.ratio;
-    if (r && size) setSides(presetSides(r, W, H));
+    if (r && size) { const f = presetFit(r, W, H); setSides(f.sides); setClamped(f.clamped); } else setClamped(false);
   };
-  const reset = () => { setSides(NONE); setPreset("free"); setPhase({ kind: "edit" }); };
+  const reset = () => { setSides(NONE); setPreset("free"); setClamped(false); setPhase({ kind: "edit" }); };
   // The default shape, Scope, is set as soon as the photo's size is known.
   useEffect(() => {
     if (!size) return;
     const r = PRESETS.find((p) => p.id === "scope")?.ratio;
-    if (r) setSides(presetSides(r, size.w, size.h));
+    if (r) { const f = presetFit(r, size.w, size.h); setSides(f.sides); setClamped(f.clamped); }
   }, [size]);
 
   const params = useMemo<ParamValues>(() => ({ ratio: "source", room: 0, sides: encodeSides(sides), prompt: prompt.trim() }), [sides, prompt]);
@@ -366,6 +377,7 @@ export function ExtendStudio({ source, onResult, onNext }: StudioProps) {
       stage={stageContent} controls={controls}
       prompt={prompt} setPrompt={setPrompt} promptPlaceholder="Beyond the frame (optional)"
       info={info} canRun={canRun} onRun={run}
+      notice={clamped && !drag ? `Held at ${MAX_SIDE}× the still per side — ${current?.label ?? "this shape"} is out of reach for this still` : undefined}
       next={onNext ? { label: phase.kind === "done" ? "Light →" : "Skip to Light →", onClick: onNext } : undefined} />
   );
 }

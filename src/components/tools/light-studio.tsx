@@ -206,6 +206,28 @@ function FixturePicker({ value, onPick }: { value: string; onPick: (u: LibraryUn
 }
 
 const GRAIN = `url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix type='saturate' values='0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>")`;
+/** Film preview (screen only): halation (an SVG bloom of the highlights), softer contrast, a warm cast. */
+const FILM = "url(#eve-film-halation) contrast(0.9) saturate(0.88) brightness(1.03) sepia(0.16)";
+const FILM_MONO = "url(#eve-film-halation-mono) grayscale(1) contrast(0.9) brightness(1.03)";
+/** Halation: only what is near white survives, blurred, tinted red-orange (grey in B&W) and screened back over the image. */
+function FilmHalation() {
+  const bloom = (id: string, tint: string) => (
+    <filter id={id} x="0" y="0" width="100%" height="100%" colorInterpolationFilters="sRGB">
+      <feComponentTransfer in="SourceGraphic" result="hi">
+        <feFuncR type="linear" slope="2.6" intercept="-1.7" /><feFuncG type="linear" slope="2.6" intercept="-1.7" /><feFuncB type="linear" slope="2.6" intercept="-1.7" />
+      </feComponentTransfer>
+      <feGaussianBlur in="hi" stdDeviation="7" result="soft" />
+      <feColorMatrix in="soft" type="matrix" values={tint} result="glow" />
+      <feBlend in="SourceGraphic" in2="glow" mode="screen" />
+    </filter>
+  );
+  return (
+    <svg aria-hidden width="0" height="0" className="pointer-events-none absolute">
+      {bloom("eve-film-halation", "0.75 0.25 0 0 0  0.2 0.25 0 0 0  0.05 0.05 0.05 0 0  0 0 0 1 0")}
+      {bloom("eve-film-halation-mono", "0.3 0.3 0.3 0 0  0.3 0.3 0.3 0 0  0.3 0.3 0.3 0 0  0 0 0 1 0")}
+    </svg>
+  );
+}
 const Divider = () => <span aria-hidden className="h-4 w-px shrink-0 bg-white/10" />;
 const tiny = "text-[10.5px] text-white/45";
 
@@ -248,6 +270,8 @@ export function LightStudio({ source, onResult, onNext, onPlan, initial, relief 
   // A relief change rebuilds the surface: the scene dims and comes back instead of flashing the photo.
   const rebuilding = !!building && !!surface;
   const [prompt, setPrompt] = useState("");
+  // What the last preset's look needs beyond its units (slat shadows, rain): told to the model with the notes.
+  const [presetWords, setPresetWords] = useState("");
   // The units drawn as fixtures on the set (screen only; never in the guide).
   const [fixtures, setFixtures] = useState(true);
   // Black & white for the whole set (lib/monochrome): preview here, prompts and graphs everywhere.
@@ -319,6 +343,7 @@ export function LightStudio({ source, onResult, onNext, onPlan, initial, relief 
     setLights(lit);
     setSelected(lit[0].id);
     setAmbient(preset.ambient);
+    setPresetWords(preset.words ?? "");
   };
 
   // Dev only: lets a smoke test take the exact guide Relight sends (it must never show fixtures or the gizmo).
@@ -337,7 +362,7 @@ export function LightStudio({ source, onResult, onNext, onPlan, initial, relief 
     front();
     const guide = await scene.current?.snapshot({ ...guideSize(size.w, size.h), camera: FRONT, lit: true, background: "photo" }).catch(() => undefined);
     // Photo + lit 3D preview as a pair; the photo alone when no preview could be drawn.
-    void runJob(() => runEdit(guide ? [blob, guide] : [blob], relightPrompt(params.lights, params.ambient, params.prompt, guide ? "pair" : undefined), { priority: "high", onQueue }));
+    void runJob(() => runEdit(guide ? [blob, guide] : [blob], relightPrompt(params.lights, params.ambient, [presetWords, params.prompt].filter(Boolean).join(" "), guide ? "pair" : undefined), { priority: "high", onQueue }));
   };
 
   const W = size?.w ?? 1, H = size?.h ?? 1;
@@ -363,7 +388,7 @@ export function LightStudio({ source, onResult, onNext, onPlan, initial, relief 
               <div className="absolute" style={{ left: photo.x, top: photo.y, width: photo.w, height: photo.h }} onPointerDownCapture={stir} onPointerMoveCapture={stir} onWheelCapture={stir}>
               <DepthScene ref={scene} image={img} surface={surface} width={photo.w} height={photo.h} lit reveal
                 play={idle && phase.kind !== "running" ? { from: view, to: { ...view, azimuth: view.azimuth + 2.5, elevation: view.elevation + 1, dolly: (view.dolly ?? 1) * 0.985 }, seconds: 6 } : null}
-                className={`eve-scene absolute transition-[opacity,filter] ${mono ? "grayscale" : ""} ${filmLook ? "contrast-[0.93] saturate-[0.9] brightness-[1.04] sepia-[0.08]" : ""} ${rebuilding ? "opacity-40 duration-300" : "duration-700"} ${phase.kind === "done" ? "opacity-0" : ""}`} style={{ left: 0, top: 0 }}
+                className={`eve-scene absolute transition-[opacity,filter] ${mono ? "grayscale" : ""}  ${rebuilding ? "opacity-40 duration-300" : "duration-700"} ${phase.kind === "done" ? "opacity-0" : ""}`} style={{ left: 0, top: 0, filter: filmLook ? (mono ? FILM_MONO : FILM) : undefined }}
                 camera={view} onCamera={setView} limits={{ ...orbitLimits(surface, { azimuth: 35, elevation: 25 }), dolly: [0.35, 3] }}
                 lights={lights} ambient={AMBIENT[ambient]} selected={sel?.id ?? null} onSelect={setSelected}
                 onLightMove={(id, anchor, normal) => update(id, { anchor, normal, dir: undefined, hung: undefined })}
@@ -379,7 +404,14 @@ export function LightStudio({ source, onResult, onNext, onPlan, initial, relief 
           <BuildingPhoto url={url} rect={photo} aspect={W / H} loading={(!!building && !rebuilding) || !surface || !img || !sceneReady} />
           <BuildingBadge building={rebuilding ? null : building} />
           {/* Film: fine animated-free grain over the preview (screen only; the prompt carries the look to the model). */}
-          {filmLook && sceneReady && phase.kind !== "done" && <div aria-hidden className="pointer-events-none absolute opacity-[0.16] mix-blend-overlay" style={{ left: photo.x, top: photo.y, width: photo.w, height: photo.h, backgroundImage: GRAIN }} />}
+          {filmLook && sceneReady && phase.kind !== "done" && (
+            <>
+              <FilmHalation />
+              {/* Lifted, slightly warm blacks: nothing on a print goes fully black. */}
+              <div aria-hidden className="pointer-events-none absolute mix-blend-lighten" style={{ left: photo.x, top: photo.y, width: photo.w, height: photo.h, background: mono ? "rgb(24,24,24)" : "rgb(30,23,17)" }} />
+              <div aria-hidden className="pointer-events-none absolute opacity-[0.3] mix-blend-overlay" style={{ left: photo.x, top: photo.y, width: photo.w, height: photo.h, backgroundImage: GRAIN }} />
+            </>
+          )}
           <Viewfinder rect={photo} hidden={phase.kind === "done" || !sceneReady} />
           <StudioResult phase={phase} rect={resultRect(phase, photo)} revealed={revealed} before={url} />
         </>
