@@ -387,7 +387,8 @@ export function Shoot({ plate, surface: rigSurface, cameras, prompt, shots, setS
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode, surface]);
   // Leaving Shoot (new still, new Relight, another step) stops the roll; finished takes stay.
-  useEffect(() => () => abort.current?.abort(), []);
+  // (In dev, StrictMode unmounts once right away: release the auto-run claim so the remount shoots again.)
+  useEffect(() => () => { abort.current?.abort(); abort.current = null; autoRan.current = false; }, []);
 
   // The cut: each shot's circled take, and which shot each clip is.
   const [clips, clipIds] = useMemo(() => {
@@ -540,8 +541,10 @@ export function Shoot({ plate, surface: rigSurface, cameras, prompt, shots, setS
   const [loopKey, setLoopKey] = useState(0);
   const [preview, setPreview] = useState<{ id: string; take: number } | null>(null);
   const startAt = useRef(0);
+  // The stage canvas mounts only once the stage is measured: track it so the loop starts then.
+  const [canvasEl, setCanvasEl] = useState<HTMLCanvasElement | null>(null);
   useEffect(() => {
-    if (mode !== "result" || !canvas.current || !clips.length || preview || early) return;
+    if (mode !== "result" || !canvasEl || !clips.length || preview || early) return;
     const ctrl = new AbortController();
     resultLoop.current = ctrl;
     void (async () => {
@@ -553,7 +556,7 @@ export function Shoot({ plate, surface: rigSurface, cameras, prompt, shots, setS
     })();
     return () => { ctrl.abort(); seq.current = null; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mode, clips, crossfade, loopKey, !!preview, !!early]);
+  }, [mode, clips, crossfade, loopKey, !!preview, !!early, canvasEl]);
   // A take chip previews that take; the slate (or circling) goes back to the cut at that shot.
   const previewTake = preview ? allTakes(shots[preview.id]).find((t) => t.take === preview.take) : undefined;
   const jump = (id: string) => {
@@ -591,7 +594,7 @@ export function Shoot({ plate, surface: rigSurface, cameras, prompt, shots, setS
           </>
         )}
         {cur?.a && mode === "shoot" && <TakeView key={`${pick}:${cur.take ?? 1}:${cur.clip ? "c" : "s"}:${cur.ga ? "g" : ""}`} shot={cur} />}
-        <canvas ref={canvas} className="absolute inset-0 h-full w-full object-contain transition-opacity duration-300" style={{ opacity: playing || mode === "result" ? 1 : 0, background: playing || mode === "result" ? "#000" : "transparent" }} />
+        <canvas ref={(el) => { canvas.current = el; setCanvasEl(el); }} className="absolute inset-0 h-full w-full object-contain transition-opacity duration-300" style={{ opacity: playing || mode === "result" ? 1 : 0, background: playing || mode === "result" ? "#000" : "transparent" }} />
         {mode === "result" && previewTake && (
           <div key={`${preview!.id}:${preview!.take}`} className="eve-step-in absolute inset-0 bg-black">
             {previewTake.clip

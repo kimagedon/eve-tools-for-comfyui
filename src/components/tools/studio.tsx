@@ -331,10 +331,10 @@ export function StudioShell({
         )}
       </div>
 
-      {/* Fixed heights all the way down, so switching step or phase never
-          resizes the stage and nothing on it jumps. */}
+      {/* At least the usual height, so switching step or phase rarely resizes the stage;
+          a step with more rows (several cameras) grows the bar instead of clipping controls. */}
       <div className="flex shrink-0 flex-col items-center gap-2 border-t border-white/[0.07] px-4 pb-4 pt-3">
-        <div className="flex h-[72px] w-full max-w-[1180px] items-center justify-start gap-x-4 gap-y-2 overflow-x-auto [scrollbar-width:none] md:flex-wrap md:content-center md:justify-center md:overflow-hidden"
+        <div className="flex min-h-[72px] w-full max-w-[1180px] items-center justify-start gap-x-4 gap-y-2 overflow-x-auto [scrollbar-width:none] md:flex-wrap md:content-center md:justify-center md:overflow-visible"
           style={{ visibility: editing && controls ? "visible" : "hidden" }}>
           {controls}
         </div>
